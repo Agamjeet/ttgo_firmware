@@ -64,6 +64,8 @@ static bool paintPhoto(int index) {
     return false;
 }
 
+static void paintSecret(uint32_t now);
+
 static void cycleColor(uint32_t now, int step) {
     const int count = PixelScene::kAnimationCount;
     animationIndex = (animationIndex + step + count) % count;
@@ -79,6 +81,7 @@ static void drawMessageFrame(uint32_t now) {
     const bool photo = paintPhoto(0);
     PixelScene::paintMessage(*target(), screen->width(), screen->height(), photo, scene.message, scene.mode,
                              scene.icon, revealCount, now, messageStarted, animationIndex);
+    paintSecret(now);
     present();
 }
 
@@ -137,6 +140,7 @@ static void drawClockFrame(uint32_t now) {
     const bool photo = paintPhoto(1);
     PixelScene::paintClock(*target(), screen->width(), screen->height(), photo, shownTime, shownDetail, waiting,
                            now, arrivedAt, animationIndex);
+    paintSecret(now);
     present();
 }
 
@@ -146,6 +150,7 @@ static void drawAnimationFrame(uint32_t now) {
     }
     const bool photo = paintPhoto(2);
     PixelScene::paintAnimation(*target(), screen->width(), screen->height(), photo, animationIndex, now, arrivedAt);
+    paintSecret(now);
     present();
 }
 
@@ -193,6 +198,36 @@ static const char *modeName(DeskMode value) {
     return "message";
 }
 
+static const bool kSecretUp[] = {true, true, false, false, true, false, true, false, true, false};
+static int secretPos = 0;
+static uint32_t secretLast = 0;
+static uint32_t secretUntil = 0;
+
+static void noteSecret(uint32_t now, bool up) {
+    if (secretLast != 0 && (uint32_t)(now - secretLast) > 1800) {
+        secretPos = 0;
+    }
+    if (up == kSecretUp[secretPos]) {
+        secretPos += 1;
+        secretLast = now;
+        if (secretPos == 10) {
+            secretPos = 0;
+            secretUntil = now + 7000;
+            frameDirty = true;
+            Serial.println("companion: secret");
+        }
+        return;
+    }
+    secretPos = up == kSecretUp[0] ? 1 : 0;
+    secretLast = now;
+}
+
+static void paintSecret(uint32_t now) {
+    if (screen != nullptr && (int32_t)(secretUntil - now) > 0) {
+        PixelScene::paintWhisper(*target(), screen->width(), screen->height());
+    }
+}
+
 static void pollKey(Key &key, uint32_t now, bool theme) {
     const int read = digitalRead(key.pin);
     if (read != key.last) {
@@ -206,6 +241,7 @@ static void pollKey(Key &key, uint32_t now, bool theme) {
     if (read != LOW) {
         return;
     }
+    noteSecret(now, theme);
     if (theme) {
         cycleColor(now, 1);
         return;

@@ -6,7 +6,7 @@ The chip is already running this program, version **1.0.0**, written over USB. A
 
 ## What she sees
 
-Three screens. The side button moves to the next one: message, clock, animation. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink.
+Three screens. The side button moves to the next one: message, clock, animation. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink, Lilac, Dawn, Forest, Gold.
 
 The message opens as a letter. The starting words are `Happy Bday`. The clock shows the time and the word Boss. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
 
@@ -38,6 +38,14 @@ You do not have to publish a firmware file now.
 `src/main.cpp` starts the board. `src/PixelScene.cpp` draws the screens. `src/Companion.cpp` handles the buttons, the clock, and the saved message. `include/TDisplayS3.hpp` tells the screen which pins to use. PlatformIO compiles them into `.pio\build\lilygo-t-display-s3\firmware.bin`. That file is stored in flash at address `0x10000`.
 
 The side button is GPIO14. The other button is GPIO0.
+
+## Secret
+
+Up is the other button, the one that changes the theme. Down is the side button, the one that changes the screen. Press them within about two seconds of each other:
+
+Up, Up, Down, Down, Up, Down, Up, Down, Up, Down.
+
+The screen says I love you.
 
 ## Command Prompt
 

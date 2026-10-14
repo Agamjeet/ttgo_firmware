@@ -8,7 +8,7 @@
 
 namespace PixelScene {
 
-constexpr int kAnimationCount = 5;
+constexpr int kAnimationCount = 9;
 constexpr uint32_t kLetterOpenMs = 820;
 
 const char *animationName(int index);
@@ -22,5 +22,7 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const c
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo, int index, uint32_t now,
                     uint32_t arrived);
+
+void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height);
 
 }

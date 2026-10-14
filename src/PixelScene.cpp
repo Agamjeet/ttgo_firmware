@@ -509,6 +509,10 @@ const Look kLooks[kAnimationCount] = {
     {{88, 28, 72}, {214, 96, 78}, {255, 176, 102}, {255, 120, 132}, {255, 214, 150}, {255, 186, 160}, {255, 176, 150}, {52, 18, 32}},
     {{8, 32, 64}, {18, 82, 112}, {36, 128, 136}, {255, 154, 176}, {190, 236, 226}, {150, 214, 220}, {176, 220, 228}, {6, 20, 36}},
     {{196, 59, 120}, {255, 122, 170}, {255, 208, 228}, {255, 61, 122}, {255, 240, 246}, {255, 224, 238}, {255, 230, 242}, {106, 24, 64}},
+    {{90, 60, 140}, {160, 120, 210}, {220, 190, 245}, {230, 140, 200}, {255, 230, 250}, {220, 190, 245}, {230, 210, 250}, {30, 16, 50}},
+    {{255, 160, 130}, {255, 196, 160}, {255, 224, 190}, {255, 110, 130}, {255, 236, 210}, {255, 210, 190}, {255, 230, 220}, {120, 50, 40}},
+    {{8, 32, 24}, {16, 72, 48}, {32, 110, 70}, {255, 140, 170}, {220, 245, 200}, {160, 210, 170}, {180, 220, 190}, {4, 16, 12}},
+    {{70, 36, 12}, {160, 100, 30}, {230, 180, 80}, {255, 120, 140}, {255, 230, 170}, {255, 210, 140}, {255, 220, 160}, {40, 20, 8}},
 };
 
 void useColor(uint16_t &slot, Rgb color) {
@@ -530,6 +534,7 @@ void applyLook(int index) {
 
 const char *kNames[kAnimationCount] = {
     "night", "sunny", "sunset", "sea", "pink",
+    "lilac", "dawn", "forest", "gold",
 };
 
 } // namespace
@@ -622,6 +627,14 @@ void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     drawSunflowers(gfx, width, height, now);
     sceneGarden(gfx, width, height, now, arrived, day, photo);
     drawDots(gfx, width, height, index);
+}
+
+void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height) {
+    drawHeartAt(gfx, width / 2 - 62, height / 2 - 8, 2);
+    drawHeartAt(gfx, width / 2 + 44, height / 2 - 8, 2);
+    gfx.setFont(&fonts::FreeSansBold12pt7b);
+    gfx.setTextDatum(lgfx::middle_center);
+    shadowText(gfx, "I love you", width / 2, height / 2, kShadow, kCream);
 }
 
 } // namespace PixelScene
