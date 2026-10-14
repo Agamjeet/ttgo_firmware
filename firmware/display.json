@@ -1,5 +1,11 @@
 {
-  "mode": "emoji",
+  "mode": "heart",
   "message": "hey how are you",
-  "icon": "star"
+  "icon": "heart",
+  "active": "message",
+  "backgrounds": {
+    "message": "message-9489113fc47b.jpg",
+    "clock": "",
+    "animation": ""
+  }
 }
