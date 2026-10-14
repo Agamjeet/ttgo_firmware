@@ -15,6 +15,8 @@
 #include <esp_ota_ops.h>
 #include <mbedtls/sha256.h>
 
+#include <freertos/semphr.h>
+
 #include <cstring>
 
 extern const uint8_t kCaBundle[] asm("_binary_x509_crt_bundle_start");
@@ -23,6 +25,7 @@ static const char *kApSsid = "LoveDisplay-Setup";
 static const char *kApPassword = "lovedisplay";
 static const size_t kMaxAppBytes = 0x640000;
 static const size_t kMaxManifestBytes = 2048;
+static const size_t kMaxJpegBytes = 80000;
 
 static Preferences prefs;
 static WebServer portal(80);
@@ -38,7 +41,16 @@ static bool wasConnected = false;
 static uint32_t nextWifiAttempt = 0;
 static uint32_t wifiBackoff = 5000;
 static uint32_t nextOtaCheck = 0;
+static uint32_t nextTriggerPoll = 0;
+static uint32_t lastTriggerId = 0;
 static bool otaScheduled = false;
+static bool forceCheck = false;
+static DisplayScene pendingScene = {"heart", "Happy Bday", "heart"};
+static bool sceneDirty = false;
+static DeskFaces pendingFaces = {};
+static bool facesDirty = false;
+static char loadedBackground[3][40] = {};
+static SemaphoreHandle_t sceneLock = nullptr;
 
 static const char kPortalPage[] = R"HTML(<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -278,6 +290,13 @@ static void serviceSerial() {
         used = 0;
         if (strcmp(line, "wifi-reset") == 0) {
             clearWifi();
+        } else if (strcmp(line, "check") == 0) {
+            forceCheck = true;
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("ota: checking now");
+            } else {
+                Serial.println("ota: check requested, waiting for Wi-Fi");
+            }
         } else if (strcmp(line, "status") == 0) {
             Serial.printf("ota: version %s wifi %s manifest %s\n", FIRMWARE_VERSION,
                           WiFi.status() == WL_CONNECTED ? "up" : "down",
@@ -478,6 +497,316 @@ static bool fetchManifest(String &body) {
     return false;
 }
 
+static void loadTriggerId() {
+    prefs.begin("ota", true);
+    lastTriggerId = prefs.getUInt("check_id", 0);
+    prefs.end();
+}
+
+static void rememberTriggerId(uint32_t id) {
+    lastTriggerId = id;
+    prefs.begin("ota", false);
+    prefs.putUInt("check_id", id);
+    prefs.end();
+}
+
+// Looks at firmware/check.json. A higher id asks the board to check the release.
+static void pollRemoteTrigger() {
+    String url = GITHUB_MANIFEST_URL;
+    if (!url.endsWith("manifest.json")) {
+        return;
+    }
+    url.replace("manifest.json", "check.json");
+
+    WiFiClientSecure client;
+    trust(client);
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http.setConnectTimeout(10000);
+    http.setTimeout(10000);
+    http.setUserAgent("LoveDisplay-OTA");
+    if (!http.begin(client, url)) {
+        return;
+    }
+    int code = http.GET();
+    if (code != 200) {
+        http.end();
+        static bool logged = false;
+        if (!logged) {
+            Serial.printf("ota: remote check file HTTP %d\n", code);
+            logged = true;
+        }
+        return;
+    }
+    String body = http.getString();
+    http.end();
+    cJSON *root = cJSON_Parse(body.c_str());
+    if (root == nullptr) {
+        return;
+    }
+    cJSON *id = cJSON_GetObjectItem(root, "id");
+    if (!cJSON_IsNumber(id) || id->valuedouble < 0 || id->valuedouble > 4294967295.0) {
+        cJSON_Delete(root);
+        return;
+    }
+    uint32_t requested = (uint32_t)id->valuedouble;
+    cJSON_Delete(root);
+    if (requested > lastTriggerId) {
+        Serial.printf("ota: remote check %u\n", requested);
+        rememberTriggerId(requested);
+        forceCheck = true;
+    }
+}
+
+static void copyField(char *dest, size_t size, const char *value);
+
+static bool safeBackgroundName(const char *name) {
+    if (name == nullptr || name[0] == '\0') {
+        return false;
+    }
+    size_t length = strlen(name);
+    if (length < 6 || length >= 40 || strcmp(name + length - 4, ".jpg") != 0) {
+        return false;
+    }
+    for (size_t i = 0; i < length; ++i) {
+        char c = name[i];
+        bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.';
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint8_t *downloadBackground(const char *name, size_t &outLength) {
+    outLength = 0;
+    String url = GITHUB_MANIFEST_URL;
+    if (!url.endsWith("manifest.json")) {
+        return nullptr;
+    }
+    url.replace("manifest.json", "backgrounds/");
+    url += name;
+
+    WiFiClientSecure client;
+    for (int hop = 0; hop < 4; ++hop) {
+        if (!isHttps(url) || !hostAllowed(url)) {
+            Serial.println("companion: background URL is not on GitHub");
+            return nullptr;
+        }
+        client.stop();
+        trust(client);
+        HTTPClient http;
+        http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+        http.setConnectTimeout(10000);
+        http.setTimeout(20000);
+        http.setUserAgent("LoveDisplay-OTA");
+        if (!http.begin(client, url)) {
+            return nullptr;
+        }
+        int code = http.GET();
+        if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+            String next = resolveRedirect(url, http.getLocation());
+            http.end();
+            if (next.length() == 0) {
+                return nullptr;
+            }
+            url = next;
+            continue;
+        }
+        if (code != 200) {
+            Serial.printf("companion: background HTTP %d\n", code);
+            http.end();
+            return nullptr;
+        }
+        int size = http.getSize();
+        if (size <= 0 || size > (int)kMaxJpegBytes) {
+            Serial.println("companion: background is missing or too large");
+            http.end();
+            return nullptr;
+        }
+        uint8_t *buffer = (uint8_t *)ps_malloc((size_t)size);
+        if (buffer == nullptr) {
+            buffer = (uint8_t *)malloc((size_t)size);
+        }
+        if (buffer == nullptr) {
+            http.end();
+            return nullptr;
+        }
+        WiFiClient *stream = http.getStreamPtr();
+        size_t got = 0;
+        uint32_t last = millis();
+        while (got < (size_t)size && http.connected()) {
+            int available = stream->available();
+            if (available > 0) {
+                int n = stream->readBytes(buffer + got, (size_t)size - got);
+                if (n > 0) {
+                    got += (size_t)n;
+                    last = millis();
+                }
+            } else if (millis() - last > 15000) {
+                break;
+            } else {
+                delay(1);
+            }
+        }
+        http.end();
+        if (got != (size_t)size || buffer[0] != 0xFF || buffer[1] != 0xD8) {
+            free(buffer);
+            Serial.println("companion: background download was incomplete");
+            return nullptr;
+        }
+        outLength = got;
+        return buffer;
+    }
+    return nullptr;
+}
+
+static void fillBackground(BackgroundFile &slot, int index, cJSON *faces, const char *key) {
+    slot.jpeg = nullptr;
+    slot.length = 0;
+    slot.name[0] = '\0';
+    if (!cJSON_IsObject(faces)) {
+        copyField(slot.name, sizeof(slot.name), loadedBackground[index]);
+        return;
+    }
+    cJSON *value = cJSON_GetObjectItem(faces, key);
+    if (!cJSON_IsString(value)) {
+        copyField(slot.name, sizeof(slot.name), loadedBackground[index]);
+        return;
+    }
+    const char *wanted = value->valuestring;
+    if (wanted[0] == '\0') {
+        loadedBackground[index][0] = '\0';
+        return;
+    }
+    if (!safeBackgroundName(wanted)) {
+        copyField(slot.name, sizeof(slot.name), loadedBackground[index]);
+        return;
+    }
+    copyField(slot.name, sizeof(slot.name), wanted);
+    if (strcmp(loadedBackground[index], wanted) == 0) {
+        return;
+    }
+    size_t length = 0;
+    uint8_t *jpeg = downloadBackground(wanted, length);
+    if (jpeg == nullptr) {
+        copyField(slot.name, sizeof(slot.name), loadedBackground[index]);
+        return;
+    }
+    slot.jpeg = jpeg;
+    slot.length = length;
+    copyField(loadedBackground[index], sizeof(loadedBackground[index]), wanted);
+    Serial.printf("companion: background %s\n", wanted);
+}
+
+static bool allowedIcon(const char *icon) {
+    return strcmp(icon, "heart") == 0 || strcmp(icon, "star") == 0 || strcmp(icon, "sparkle") == 0 ||
+           strcmp(icon, "smile") == 0 || strcmp(icon, "flower") == 0 || strcmp(icon, "sun") == 0 ||
+           strcmp(icon, "moon") == 0 || strcmp(icon, "note") == 0;
+}
+
+static void copyField(char *dest, size_t size, const char *value) {
+    strncpy(dest, value, size - 1);
+    dest[size - 1] = '\0';
+}
+
+static void pollDisplay() {
+    String url = GITHUB_MANIFEST_URL;
+    if (!url.endsWith("manifest.json")) {
+        return;
+    }
+    url.replace("manifest.json", "display.json");
+
+    WiFiClientSecure client;
+    trust(client);
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http.setConnectTimeout(10000);
+    http.setTimeout(10000);
+    http.setUserAgent("LoveDisplay-OTA");
+    if (!http.begin(client, url)) {
+        return;
+    }
+    int code = http.GET();
+    if (code != 200) {
+        http.end();
+        return;
+    }
+    String body = http.getString();
+    http.end();
+    cJSON *root = cJSON_Parse(body.c_str());
+    if (root == nullptr) {
+        return;
+    }
+    cJSON *mode = cJSON_GetObjectItem(root, "mode");
+    cJSON *message = cJSON_GetObjectItem(root, "message");
+    cJSON *icon = cJSON_GetObjectItem(root, "icon");
+    if (!cJSON_IsString(mode) || !cJSON_IsString(message) || !cJSON_IsString(icon)) {
+        cJSON_Delete(root);
+        return;
+    }
+    DisplayScene next = pendingScene;
+    if (strcmp(mode->valuestring, "text") == 0 || strcmp(mode->valuestring, "emoji") == 0 ||
+        strcmp(mode->valuestring, "heart") == 0) {
+        copyField(next.mode, sizeof(next.mode), mode->valuestring);
+    }
+    copyField(next.message, sizeof(next.message), message->valuestring);
+    if (allowedIcon(icon->valuestring)) {
+        copyField(next.icon, sizeof(next.icon), icon->valuestring);
+    }
+
+    DeskFaces faces = {};
+    faces.message = next;
+    copyField(faces.active, sizeof(faces.active), "message");
+    cJSON *active = cJSON_GetObjectItem(root, "active");
+    if (cJSON_IsString(active) && (strcmp(active->valuestring, "message") == 0 ||
+                                   strcmp(active->valuestring, "clock") == 0 ||
+                                   strcmp(active->valuestring, "animation") == 0)) {
+        copyField(faces.active, sizeof(faces.active), active->valuestring);
+    }
+    cJSON *backgrounds = cJSON_GetObjectItem(root, "backgrounds");
+    const char *keys[3] = {"message", "clock", "animation"};
+    for (int i = 0; i < 3; ++i) {
+        fillBackground(faces.backgrounds[i], i, backgrounds, keys[i]);
+    }
+    cJSON_Delete(root);
+
+    if (sceneLock == nullptr) {
+        for (int i = 0; i < 3; ++i) {
+            free(faces.backgrounds[i].jpeg);
+        }
+        return;
+    }
+    xSemaphoreTake(sceneLock, portMAX_DELAY);
+    bool changed = strcmp(pendingScene.mode, next.mode) != 0 || strcmp(pendingScene.message, next.message) != 0 ||
+                   strcmp(pendingScene.icon, next.icon) != 0 || strcmp(pendingFaces.active, faces.active) != 0;
+    for (int i = 0; i < 3 && !changed; ++i) {
+        changed = strcmp(pendingFaces.backgrounds[i].name, faces.backgrounds[i].name) != 0 ||
+                  faces.backgrounds[i].jpeg != nullptr;
+    }
+    if (changed) {
+        for (int i = 0; i < 3; ++i) {
+            if (faces.backgrounds[i].jpeg == nullptr) {
+                faces.backgrounds[i].jpeg = pendingFaces.backgrounds[i].jpeg;
+                faces.backgrounds[i].length = pendingFaces.backgrounds[i].length;
+            } else if (pendingFaces.backgrounds[i].jpeg != nullptr &&
+                       pendingFaces.backgrounds[i].jpeg != faces.backgrounds[i].jpeg) {
+                free(pendingFaces.backgrounds[i].jpeg);
+            }
+        }
+        pendingScene = next;
+        pendingFaces = faces;
+        sceneDirty = true;
+        facesDirty = true;
+        Serial.printf("ota: new screen %s / %s\n", next.mode, next.icon);
+    } else {
+        for (int i = 0; i < 3; ++i) {
+            free(faces.backgrounds[i].jpeg);
+        }
+    }
+    xSemaphoreGive(sceneLock);
+}
+
 // Returns true when GitHub answered and no retry is needed yet.
 static bool checkManifest() {
     if (GITHUB_MANIFEST_URL[0] == '\0') {
@@ -540,6 +869,7 @@ static bool checkManifest() {
 
 static void networkTask(void *) {
     haveWifi = loadWifi();
+    loadTriggerId();
     if (!haveWifi) {
         startPortal();
     } else {
@@ -577,6 +907,7 @@ static void networkTask(void *) {
                 wasConnected = true;
                 wifiBackoff = 5000;
                 otaScheduled = false;
+                nextTriggerPoll = millis() + OTA_TRIGGER_INTERVAL_MS;
                 Serial.printf("ota: Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
             } else if (!connected && wasConnected) {
                 wasConnected = false;
@@ -592,10 +923,17 @@ static void networkTask(void *) {
 
             if (connected) {
                 uint32_t now = millis();
+                if ((int32_t)(now - nextTriggerPoll) >= 0) {
+                    nextTriggerPoll = now + OTA_TRIGGER_INTERVAL_MS;
+                    pollRemoteTrigger();
+                    pollDisplay();
+                }
                 if (!otaScheduled) {
                     nextOtaCheck = now + OTA_FIRST_CHECK_MS;
                     otaScheduled = true;
-                } else if ((int32_t)(now - nextOtaCheck) >= 0) {
+                }
+                if (forceCheck || (int32_t)(now - nextOtaCheck) >= 0) {
+                    forceCheck = false;
                     bool settled = checkManifest();
                     nextOtaCheck = millis() + (settled ? OTA_CHECK_INTERVAL_MS : OTA_RETRY_MS);
                 }
@@ -616,7 +954,38 @@ void OtaManager::onDisplayFailed() {
     }
 }
 
+bool OtaManager::takeScene(DisplayScene &out) {
+    if (sceneLock == nullptr || !sceneDirty) {
+        return false;
+    }
+    xSemaphoreTake(sceneLock, portMAX_DELAY);
+    out = pendingScene;
+    sceneDirty = false;
+    xSemaphoreGive(sceneLock);
+    return true;
+}
+
+bool OtaManager::takeFaces(DeskFaces &out) {
+    if (sceneLock == nullptr || !facesDirty) {
+        return false;
+    }
+    xSemaphoreTake(sceneLock, portMAX_DELAY);
+    out = pendingFaces;
+    for (int i = 0; i < 3; ++i) {
+        pendingFaces.backgrounds[i].jpeg = nullptr;
+        pendingFaces.backgrounds[i].length = 0;
+    }
+    pendingScene = pendingFaces.message;
+    sceneDirty = false;
+    facesDirty = false;
+    xSemaphoreGive(sceneLock);
+    return true;
+}
+
 void OtaManager::begin() {
+    if (sceneLock == nullptr) {
+        sceneLock = xSemaphoreCreateMutex();
+    }
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (running != nullptr) {
         Serial.printf("ota: running slot %s\n", running->label);

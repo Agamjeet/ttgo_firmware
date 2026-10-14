@@ -6,6 +6,11 @@
 // Current LovyanGFX drives that bus with the ESP32-S3 LCD_CAM peripheral,
 // which has no i2s_port field, so this profile is the official pin map
 // adapted to LovyanGFX 1.2.x.
+// LilyGO pin_config for this board: BUTTON_1 is BOOT on GPIO0, BUTTON_2 is GPIO14.
+// Both are active low.
+
+static constexpr int kButtonPrev = 0;
+static constexpr int kButtonNext = 14;
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>

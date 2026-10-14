@@ -1,10 +1,33 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
 // Wi-Fi and GitHub release checks. The display code does not call into this
 // except at startup, and this module does not draw on the screen.
+struct DisplayScene {
+    char mode[12];
+    char message[121];
+    char icon[12];
+};
+
+struct BackgroundFile {
+    char name[40];
+    uint8_t *jpeg;
+    size_t length;
+};
+
+struct DeskFaces {
+    char active[12];
+    DisplayScene message;
+    BackgroundFile backgrounds[3];
+};
+
 namespace OtaManager {
 
 void begin();
 void onDisplayFailed();
+bool takeScene(DisplayScene &out);
+bool takeFaces(DeskFaces &out);
 
 }
