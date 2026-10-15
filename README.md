@@ -34,7 +34,7 @@ It waits 15 seconds before trying the saved Wi-Fi again, so a blip of a few seco
 
 ## What you can change after it is given away
 
-Messages, stamps, pictures, and which screen is showing do **not** need a new `firmware.bin`. The website writes `firmware/display.json`. After it joins Wi-Fi it reads that right away. After a save, the board notices within about 15 seconds and then reads the new message. It also reads the saved screen about every 30 seconds, so a missed save still arrives. It does not call GitHub more often than that.
+Messages, stamps, pictures, and which screen is showing do **not** need a new `firmware.bin`. The website writes `firmware/display.json`. After it joins Wi-Fi it reads that right away. After a save, the board reads the new message and the chosen screen about every minute and a half. A changed message opens the message screen, a changed clock line opens the clock, and a changed caption opens the photo. Show this screen opens the screen you picked. The side button still works until the next save.
 
 A new program file is only for a change to the C++ itself, such as a new drawing. The version in `include/firmware_version.h` is `1.0.0`. The board installs a release only when the published version is **higher** than that. Publishing `1.0.0` again does nothing. The release listed in `firmware/manifest.json` is disabled, so it will not replace the program already on the chip.
 

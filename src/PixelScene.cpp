@@ -1,4 +1,5 @@
 #include "PixelScene.h"
+#include "firmware_version.h"
 
 #include <cstring>
 
@@ -107,8 +108,10 @@ void drawSparkle(lgfx::LovyanGFX &gfx, int x, int y, int scale, uint16_t color) 
     gfx.fillRect(x + scale, y + scale, 3 * scale, 3 * scale, color);
 }
 
+void drawMark(lgfx::LovyanGFX &gfx, const char *which, int x, int y, int scale);
+
 void drawRisingHearts(lgfx::LovyanGFX &gfx, uint32_t now, int count,
-                      int x0, int x1, int y0, int y1) {
+                      int x0, int x1, int y0, int y1, const char *which = "heart") {
     for (int i = 0; i < count; ++i) {
         const uint32_t period = 2600 + static_cast<uint32_t>(i) * 380;
         const uint32_t age = (now + static_cast<uint32_t>(i) * 430) % period;
@@ -117,17 +120,17 @@ void drawRisingHearts(lgfx::LovyanGFX &gfx, uint32_t now, int count,
         const int x = x0 + (i * 37 + static_cast<int>(age / 180)) % (span > 1 ? span : 1);
         const int travel = y1 - y0;
         const int y = y1 - static_cast<int>(age * static_cast<uint32_t>(travel) / period);
-        if (y >= y0) drawHeartAt(gfx, x, y, 1);
+        if (y >= y0) drawMark(gfx, which, x, y, 1);
     }
 }
 
-void drawBurst(lgfx::LovyanGFX &gfx, int cx, int cy, uint32_t now, uint32_t arrived) {
+void drawBurst(lgfx::LovyanGFX &gfx, int cx, int cy, uint32_t now, uint32_t arrived, const char *which = "heart") {
     const uint32_t age = now - arrived;
     if (age > 880) return;
     static const int steps[][2] = {{-4,-2},{4,-2},{-2,-4},{2,-3},{-5,1},{5,1},{-2,3},{3,2}};
     for (const auto &step : steps) {
-        drawHeartAt(gfx, cx + step[0] * static_cast<int>(age) / 70,
-                    cy + step[1] * static_cast<int>(age) / 80, 1);
+        drawMark(gfx, which, cx + step[0] * static_cast<int>(age) / 70,
+                 cy + step[1] * static_cast<int>(age) / 80, 1);
     }
 }
 
@@ -299,26 +302,135 @@ void drawMiniNote(lgfx::LovyanGFX &gfx, int x, int y) {
     gfx.fillCircle(x + 5, y + 12, 3, kRose);
 }
 
-void drawStamp(lgfx::LovyanGFX &gfx, const char *style, const char *icon, int x, int y) {
-    if (style != nullptr && strcmp(style, "text") == 0) return;
-    const char *which = (style != nullptr && strcmp(style, "heart") == 0) ? "heart" : icon;
-    if (which != nullptr && strcmp(which, "star") == 0) drawSparkle(gfx, x, y, 2, kMoon);
-    else if (which != nullptr && strcmp(which, "sparkle") == 0) drawSparkle(gfx, x, y, 2, kLavender);
-    else if (which != nullptr && strcmp(which, "smile") == 0) drawBrachiosaurus(gfx, x - 10, y - 5, 1, Mood::Happy);
+void drawFace(lgfx::LovyanGFX &gfx, int x, int y, int scale, bool gasp) {
+    const int radius = 6 * scale;
+    const int cx = x + radius;
+    const int cy = y + radius;
+    gfx.fillCircle(cx, cy, radius, kRose);
+    gfx.fillCircle(cx, cy, radius - scale, kCream);
+    if (gasp) {
+        const int eye = scale > 1 ? 2 : 1;
+        gfx.fillCircle(cx - 2 * scale, cy - scale, eye, kInk);
+        gfx.fillCircle(cx + 2 * scale, cy - scale, eye, kInk);
+        gfx.fillCircle(cx, cy + 2 * scale, scale + 1, kRose);
+        if (scale > 1) gfx.fillCircle(cx, cy + 2 * scale, 1, kCream);
+        return;
+    }
+    gfx.fillRect(cx - 3 * scale, cy - 2 * scale, scale, scale, kInk);
+    gfx.fillRect(cx + 2 * scale, cy - 2 * scale, scale, scale, kInk);
+    gfx.fillRect(cx - 3 * scale, cy + scale, scale, scale, kRose);
+    gfx.fillRect(cx + 2 * scale, cy + scale, scale, scale, kRose);
+    gfx.fillRect(cx - 2 * scale, cy + 2 * scale, 4 * scale, scale, kRose);
+    gfx.fillRect(cx - 4 * scale, cy, scale, scale, kBlush);
+    gfx.fillRect(cx + 3 * scale, cy, scale, scale, kBlush);
+}
+
+void drawStar(lgfx::LovyanGFX &gfx, int x, int y, int scale) {
+    gfx.fillRect(x + 5 * scale, y, 3 * scale, 13 * scale, kMoon);
+    gfx.fillRect(x, y + 5 * scale, 13 * scale, 3 * scale, kMoon);
+    gfx.fillRect(x + 2 * scale, y + 2 * scale, 3 * scale, 3 * scale, kSun);
+    gfx.fillRect(x + 8 * scale, y + 2 * scale, 3 * scale, 3 * scale, kSun);
+    gfx.fillRect(x + 2 * scale, y + 8 * scale, 3 * scale, 3 * scale, kSun);
+    gfx.fillRect(x + 8 * scale, y + 8 * scale, 3 * scale, 3 * scale, kSun);
+    gfx.fillRect(x + 6 * scale, y + 6 * scale, scale, scale, kCream);
+}
+
+void drawYellowStar(lgfx::LovyanGFX &gfx, int x, int y, int scale) {
+    const int cx = x + 6 * scale;
+    const int cy = y + 6 * scale;
+    const int outer = 6 * scale;
+    const int inner = (12 * scale) / 5;
+    static const int unit[10][2] = {
+        {0, -1000}, {588, -809}, {951, -309}, {951, 309}, {588, 809},
+        {0, 1000}, {-588, 809}, {-951, 309}, {-951, -309}, {-588, -809},
+    };
+    int px[10];
+    int py[10];
+    for (int i = 0; i < 10; ++i) {
+        const int radius = i % 2 == 0 ? outer : inner;
+        px[i] = cx + unit[i][0] * radius / 1000;
+        py[i] = cy + unit[i][1] * radius / 1000;
+    }
+    for (int i = 0; i < 10; ++i) {
+        const int next = (i + 1) % 10;
+        gfx.fillTriangle(cx, cy, px[i], py[i], px[next], py[next], kSun);
+    }
+    gfx.fillRect(cx - scale, cy - scale, 2 * scale, 2 * scale, kSunSoft);
+}
+
+void paintMask(lgfx::LovyanGFX &gfx, int x, int y, int scale, const char *const *rows, int count, uint16_t color) {
+    for (int row = 0; row < count; ++row) {
+        const char *line = rows[row];
+        for (int col = 0; line[col] != '\0'; ++col) {
+            if (line[col] == '#') gfx.fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        }
+    }
+}
+
+void drawTooth(lgfx::LovyanGFX &gfx, int x, int y, int scale) {
+    static const char *outline[] = {
+        "...########...",
+        "..##########..",
+        ".############.",
+        ".############.",
+        "##############",
+        "##############",
+        "##############",
+        "##############",
+        ".############.",
+        ".############.",
+        ".############.",
+        "..####..####..",
+        "...##....##...",
+    };
+    static const char *tooth[] = {
+        "..########..",
+        ".##########.",
+        ".##########.",
+        "############",
+        "############",
+        "############",
+        "############",
+        ".####..####.",
+        ".####..####.",
+        ".####..####.",
+        "..##....##..",
+    };
+    paintMask(gfx, x - scale, y - scale, scale, outline, 13, kInk);
+    paintMask(gfx, x, y, scale, tooth, 11, kWhite);
+    gfx.fillRect(x + 3 * scale, y + 2 * scale, scale, 2 * scale, kCream);
+}
+
+void drawMark(lgfx::LovyanGFX &gfx, const char *which, int x, int y, int scale) {
+    if (which != nullptr && strcmp(which, "star") == 0) drawStar(gfx, x, y, scale);
+    else if (which != nullptr && strcmp(which, "sparkle") == 0) drawYellowStar(gfx, x, y, scale);
+    else if (which != nullptr && strcmp(which, "smile") == 0) drawFace(gfx, x, y, scale, false);
+    else if (which != nullptr && strcmp(which, "gasp") == 0) drawFace(gfx, x, y, scale, true);
+    else if (which != nullptr && strcmp(which, "tooth") == 0) drawTooth(gfx, x, y, scale);
     else if (which != nullptr && strcmp(which, "flower") == 0) drawMiniFlower(gfx, x, y);
     else if (which != nullptr && strcmp(which, "sun") == 0) drawMiniSun(gfx, x, y);
     else if (which != nullptr && strcmp(which, "moon") == 0) drawMiniMoon(gfx, x, y);
     else if (which != nullptr && strcmp(which, "note") == 0) drawMiniNote(gfx, x, y);
-    else drawHeartAt(gfx, x, y, 2);
+    else drawHeartAt(gfx, x, y, scale);
 }
 
-void drawEnvelope(lgfx::LovyanGFX &gfx, int x, int y, int lift) {
+void drawStamp(lgfx::LovyanGFX &gfx, const char *style, const char *icon, int x, int y) {
+    if (style != nullptr && strcmp(style, "text") == 0) return;
+    const char *which = (style != nullptr && strcmp(style, "heart") == 0) ? "heart" : icon;
+    const bool big = which != nullptr && (strcmp(which, "heart") == 0 || strcmp(which, "star") == 0 ||
+                                           strcmp(which, "sparkle") == 0 || strcmp(which, "smile") == 0 ||
+                                           strcmp(which, "gasp") == 0 || strcmp(which, "tooth") == 0);
+    drawMark(gfx, which, x, y, big ? 2 : 1);
+}
+
+void drawEnvelope(lgfx::LovyanGFX &gfx, int x, int y, int lift, const char *which = "heart") {
     gfx.fillRoundRect(x, y + 16, 104, 58, 6, kRose);
     gfx.fillRoundRect(x + 5, y + 24, 94, 44, 4, kPaper);
     const int tip = y + 20 - lift;
     gfx.fillTriangle(x + 4, y + 22, x + 52, tip, x + 100, y + 22, kLavender);
     gfx.fillTriangle(x + 14, y + 22, x + 52, tip + 16, x + 90, y + 22, kPink);
-    drawHeartAt(gfx, x + 45, y + 36, 2);
+    const bool big = which != nullptr && strcmp(which, "heart") == 0;
+    drawMark(gfx, which, x + 45, y + 36, big ? 2 : 1);
 }
 
 int wrapLines(lgfx::LovyanGFX &gfx, const char *text, char lines[][48], int maxLines, int maxWidth) {
@@ -560,12 +672,15 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     const uint32_t age = now - started;
     const bool open = age >= kLetterOpenMs;
     const Mood mood = ambientMood(now, started);
-    drawRisingHearts(gfx, now, 3, 8, 70, 8, 70);
+    const char *mark = (style != nullptr && strcmp(style, "emoji") == 0 && icon != nullptr && icon[0] != '\0') ? icon : "heart";
     const int dinoY = height - 62;
     if (!open) {
         const int lift = static_cast<int>(age * 22 / kLetterOpenMs);
-        drawEnvelope(gfx, (width - 104) / 2, 18, lift);
+        drawEnvelope(gfx, (width - 104) / 2, 18, lift, mark);
         drawBrachiosaurus(gfx, 4, dinoY, 1, mood);
+        drawRisingHearts(gfx, now, 2, 2, 22, 16, height - 12, mark);
+        drawRisingHearts(gfx, now, 2, width - 24, width - 6, 36, height - 12, mark);
+        drawRisingHearts(gfx, now, 3, 28, width - 36, 20, height - 28, mark);
         return;
     }
     const int cardX = 16;
@@ -575,10 +690,13 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     gfx.fillRoundRect(cardX - 3, cardY - 3, cardW + 6, cardH + 6, 9, kRose);
     gfx.fillRoundRect(cardX, cardY, cardW, cardH, 7, kPaper);
     gfx.fillTriangle(cardX + 7, cardY + 2, cardX + 30, cardY + 19, cardX + 7, cardY + 25, kLavender);
-    drawStamp(gfx, style, icon, cardX + cardW - 24, cardY + 7);
     drawRevealed(gfx, text, visible, cardX + 8, cardY + 8, cardW - 36, cardH - 14);
+    drawStamp(gfx, style, icon, cardX + cardW - 30, cardY + 6);
     drawBrachiosaurus(gfx, 4, dinoY, 1, mood);
-    drawBurst(gfx, width - 30, 16, now, started);
+    drawBurst(gfx, width - 30, 16, now, started, mark);
+    drawRisingHearts(gfx, now, 2, 2, 22, 16, height - 12, mark);
+    drawRisingHearts(gfx, now, 2, width - 24, width - 6, 36, height - 12, mark);
+    drawRisingHearts(gfx, now, 3, 28, width - 36, 20, cardY + cardH - 8, mark);
 }
 
 void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
@@ -606,6 +724,9 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     if (waiting) {
         gfx.setFont(&fonts::FreeSansBold12pt7b);
         shadowText(gfx, timeText, width / 2, height / 2, kShadow, kCream);
+        gfx.setFont(&fonts::Font0);
+        gfx.setTextDatum(lgfx::bottom_left);
+        shadowText(gfx, FIRMWARE_VERSION, 4, height - 1, kShadow, kCream);
         return;
     }
     gfx.setFont(&fonts::FreeSansBold24pt7b);
@@ -616,6 +737,9 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     gfx.setFont(&fonts::FreeSansBold9pt7b);
     const char *line = clockLine != nullptr && clockLine[0] != '\0' ? clockLine : "Boss";
     shadowText(gfx, line, width / 2, 139, kShadow, kLavender);
+    gfx.setFont(&fonts::Font0);
+    gfx.setTextDatum(lgfx::bottom_left);
+    shadowText(gfx, FIRMWARE_VERSION, 4, height - 1, kShadow, kCream);
 }
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,

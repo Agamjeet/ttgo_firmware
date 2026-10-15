@@ -345,6 +345,7 @@ static void adoptBackground(int index, BackgroundFile &file) {
     if (!drawn) {
         backgrounds[index]->deleteSprite();
         backgroundNames[index][0] = '\0';
+        OtaManager::forgetBackground(index);
         Serial.println("companion: picture could not be drawn");
         frameDirty = true;
         return;
@@ -365,7 +366,26 @@ static void copyLine(char *dest, size_t size, const char *value, const char *fal
     dest[size - 1] = '\0';
 }
 
+static void showSavedFace(const char *name) {
+    DeskMode next = DeskMode::Message;
+    if (strcmp(name, "clock") == 0) {
+        next = DeskMode::Clock;
+    } else if (strcmp(name, "animation") == 0) {
+        next = DeskMode::Animation;
+    } else if (strcmp(name, "photo") == 0) {
+        next = DeskMode::Photo;
+    }
+    Companion::setMode(next);
+}
+
 void Companion::apply(DeskFaces &faces) {
+    const char *nextClock = faces.clockLine[0] != '\0' ? faces.clockLine : "Boss";
+    const bool messageChanged = strcmp(scene.message, faces.message.message) != 0 ||
+                                strcmp(scene.mode, faces.message.mode) != 0 ||
+                                strcmp(scene.icon, faces.message.icon) != 0;
+    const bool clockChanged = strcmp(clockLine, nextClock) != 0;
+    const bool captionChanged = strcmp(photoCaption, faces.photoCaption) != 0;
+
     setScene(faces.message);
     sceneKnown = true;
     copyLine(clockLine, sizeof(clockLine), faces.clockLine, "Boss");
@@ -381,15 +401,13 @@ void Companion::apply(DeskFaces &faces) {
     if (faces.active[0] != '\0' && (picked || strcmp(faces.active, lastActive) != 0)) {
         strncpy(lastActive, faces.active, sizeof(lastActive) - 1);
         lastActive[sizeof(lastActive) - 1] = '\0';
-        if (strcmp(faces.active, "clock") == 0) {
-            setMode(DeskMode::Clock);
-        } else if (strcmp(faces.active, "animation") == 0) {
-            setMode(DeskMode::Animation);
-        } else if (strcmp(faces.active, "photo") == 0) {
-            setMode(DeskMode::Photo);
-        } else {
-            setMode(DeskMode::Message);
-        }
+        showSavedFace(faces.active);
+    } else if (messageChanged) {
+        showSavedFace("message");
+    } else if (clockChanged) {
+        showSavedFace("clock");
+    } else if (captionChanged) {
+        showSavedFace("photo");
     }
 }
 

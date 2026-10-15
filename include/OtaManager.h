@@ -32,6 +32,7 @@ namespace OtaManager {
 
 void begin();
 void onDisplayFailed();
+void forgetBackground(int index);
 bool takeScene(DisplayScene &out);
 bool takeFaces(DeskFaces &out);
 

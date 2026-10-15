@@ -98,7 +98,7 @@ static String hostOf(const String &url) {
 
 static bool hostAllowed(const String &url) {
     String host = hostOf(url);
-    return host == "github.com" || host == "raw.githubusercontent.com" ||
+    return host == "github.com" || host == "api.github.com" || host == "raw.githubusercontent.com" ||
            host == "objects.githubusercontent.com" || host == "media.githubusercontent.com" ||
            host == "release-assets.githubusercontent.com" ||
            host == "github-releases.githubusercontent.com";
@@ -598,11 +598,7 @@ static bool safeBackgroundName(const char *name) {
 
 static uint8_t *downloadBackground(const char *name, size_t &outLength) {
     outLength = 0;
-    String url = GITHUB_MANIFEST_URL;
-    if (!url.endsWith("manifest.json")) {
-        return nullptr;
-    }
-    url.replace("manifest.json", "backgrounds/");
+    String url = "https://api.github.com/repos/Agamjeet/ttgo_firmware/contents/firmware/backgrounds/";
     url += name;
 
     WiFiClientSecure client;
@@ -621,6 +617,7 @@ static uint8_t *downloadBackground(const char *name, size_t &outLength) {
         if (!http.begin(client, url)) {
             return nullptr;
         }
+        http.addHeader("Accept", "application/vnd.github.raw");
         int code = http.GET();
         if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
             String next = resolveRedirect(url, http.getLocation());
@@ -721,10 +718,18 @@ static void fillBackground(BackgroundFile &slot, int index, cJSON *faces, const 
     Serial.printf("companion: background %s\n", wanted);
 }
 
+void OtaManager::forgetBackground(int index) {
+    if (index < 0 || index >= kDeskFaceCount) {
+        return;
+    }
+    loadedBackground[index][0] = '\0';
+}
+
 static bool allowedIcon(const char *icon) {
     return strcmp(icon, "heart") == 0 || strcmp(icon, "star") == 0 || strcmp(icon, "sparkle") == 0 ||
-           strcmp(icon, "smile") == 0 || strcmp(icon, "flower") == 0 || strcmp(icon, "sun") == 0 ||
-           strcmp(icon, "moon") == 0 || strcmp(icon, "note") == 0;
+           strcmp(icon, "smile") == 0 || strcmp(icon, "gasp") == 0 || strcmp(icon, "tooth") == 0 ||
+           strcmp(icon, "flower") == 0 ||
+           strcmp(icon, "sun") == 0 || strcmp(icon, "moon") == 0 || strcmp(icon, "note") == 0;
 }
 
 static void copyField(char *dest, size_t size, const char *value) {
@@ -732,12 +737,7 @@ static void copyField(char *dest, size_t size, const char *value) {
     dest[size - 1] = '\0';
 }
 
-static void pollDisplay() {
-    String url = freshUrl("display.json");
-    if (url.length() == 0) {
-        return;
-    }
-
+static uint32_t pollDisplay() {
     WiFiClientSecure client;
     trust(client);
     HTTPClient http;
@@ -745,26 +745,33 @@ static void pollDisplay() {
     http.setConnectTimeout(10000);
     http.setTimeout(10000);
     http.setUserAgent("LoveDisplay-OTA");
-    if (!http.begin(client, url)) {
-        return;
+    if (!http.begin(client, GITHUB_DISPLAY_URL)) {
+        return OTA_DISPLAY_INTERVAL_MS;
     }
+    http.addHeader("Accept", "application/vnd.github.raw");
     int code = http.GET();
+    if (code == 403 || code == 429) {
+        http.end();
+        Serial.println("ota: GitHub asked the board to wait");
+        return 5UL * 60UL * 1000UL;
+    }
     if (code != 200) {
         http.end();
-        return;
+        Serial.printf("ota: display HTTP %d\n", code);
+        return OTA_DISPLAY_INTERVAL_MS;
     }
     String body = http.getString();
     http.end();
     cJSON *root = cJSON_Parse(body.c_str());
     if (root == nullptr) {
-        return;
+        return OTA_DISPLAY_INTERVAL_MS;
     }
     cJSON *mode = cJSON_GetObjectItem(root, "mode");
     cJSON *message = cJSON_GetObjectItem(root, "message");
     cJSON *icon = cJSON_GetObjectItem(root, "icon");
     if (!cJSON_IsString(mode) || !cJSON_IsString(message) || !cJSON_IsString(icon)) {
         cJSON_Delete(root);
-        return;
+        return OTA_DISPLAY_INTERVAL_MS;
     }
     DisplayScene next = pendingScene;
     if (strcmp(mode->valuestring, "text") == 0 || strcmp(mode->valuestring, "emoji") == 0 ||
@@ -811,7 +818,7 @@ static void pollDisplay() {
         for (int i = 0; i < kDeskFaceCount; ++i) {
             free(faces.backgrounds[i].jpeg);
         }
-        return;
+        return OTA_DISPLAY_INTERVAL_MS;
     }
     xSemaphoreTake(sceneLock, portMAX_DELAY);
     bool changed = strcmp(pendingScene.mode, next.mode) != 0 || strcmp(pendingScene.message, next.message) != 0 ||
@@ -853,6 +860,7 @@ static void pollDisplay() {
         }
     }
     xSemaphoreGive(sceneLock);
+    return OTA_DISPLAY_INTERVAL_MS;
 }
 
 // Returns true when GitHub answered and no retry is needed yet.
@@ -1003,13 +1011,13 @@ static void networkTask(void *) {
                     nextTriggerPoll = now + OTA_TRIGGER_INTERVAL_MS;
                     pollRemoteTrigger();
                     if (lastTriggerId != seen) {
-                        pollDisplay();
-                        nextDisplayPoll = now + OTA_DISPLAY_INTERVAL_MS;
+                        uint32_t wait = pollDisplay();
+                        nextDisplayPoll = millis() + wait;
                     }
                 }
                 if ((int32_t)(now - nextDisplayPoll) >= 0) {
-                    nextDisplayPoll = now + OTA_DISPLAY_INTERVAL_MS;
-                    pollDisplay();
+                    uint32_t wait = pollDisplay();
+                    nextDisplayPoll = millis() + wait;
                 }
                 if (!otaScheduled) {
                     nextOtaCheck = now + OTA_FIRST_CHECK_MS;
