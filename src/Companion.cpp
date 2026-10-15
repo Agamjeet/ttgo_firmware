@@ -22,8 +22,6 @@ static bool clockStatusDrawn = false;
 static bool frameDirty = true;
 static lgfx::LGFX_Sprite *backgrounds[kDeskFaceCount] = {};
 static char backgroundNames[kDeskFaceCount][40] = {};
-static char lastActive[12] = "";
-static uint32_t lastShow = 0;
 static char clockLine[19] = "Boss";
 static char photoCaption[23] = "";
 
@@ -274,7 +272,6 @@ static void paintSecret(uint32_t now) {
 }
 
 static bool themeHeldSetup = false;
-static bool pageHeldByBoard = false;
 
 static void pollKey(Key &key, uint32_t now, bool theme) {
     const int read = digitalRead(key.pin);
@@ -311,8 +308,6 @@ static void pollKey(Key &key, uint32_t now, bool theme) {
         return;
     }
     noteSecret(now, false);
-    pageHeldByBoard = true;
-    Serial.println("companion: page stays with the board");
     Companion::setMode(nextMode(mode));
 }
 
@@ -404,26 +399,7 @@ static void copyLine(char *dest, size_t size, const char *value, const char *fal
     dest[size - 1] = '\0';
 }
 
-static void showSavedFace(const char *name) {
-    DeskMode next = DeskMode::Message;
-    if (strcmp(name, "clock") == 0) {
-        next = DeskMode::Clock;
-    } else if (strcmp(name, "animation") == 0) {
-        next = DeskMode::Animation;
-    } else if (strcmp(name, "photo") == 0) {
-        next = DeskMode::Photo;
-    }
-    Companion::setMode(next);
-}
-
 void Companion::apply(DeskFaces &faces) {
-    const char *nextClock = faces.clockLine[0] != '\0' ? faces.clockLine : "Boss";
-    const bool messageChanged = strcmp(scene.message, faces.message.message) != 0 ||
-                                strcmp(scene.mode, faces.message.mode) != 0 ||
-                                strcmp(scene.icon, faces.message.icon) != 0;
-    const bool clockChanged = strcmp(clockLine, nextClock) != 0;
-    const bool captionChanged = strcmp(photoCaption, faces.photoCaption) != 0;
-
     setScene(faces.message);
     sceneKnown = true;
     copyLine(clockLine, sizeof(clockLine), faces.clockLine, "Boss");
@@ -431,29 +407,6 @@ void Companion::apply(DeskFaces &faces) {
     frameDirty = true;
     for (int i = 0; i < kDeskFaceCount; ++i) {
         adoptBackground(i, faces.backgrounds[i]);
-    }
-    const bool picked = faces.show != 0 && faces.show != lastShow;
-    if (picked) {
-        lastShow = faces.show;
-        pageHeldByBoard = false;
-    }
-    if (pageHeldByBoard) {
-        if (faces.active[0] != '\0') {
-            strncpy(lastActive, faces.active, sizeof(lastActive) - 1);
-            lastActive[sizeof(lastActive) - 1] = '\0';
-        }
-        return;
-    }
-    if (faces.active[0] != '\0' && (picked || strcmp(faces.active, lastActive) != 0)) {
-        strncpy(lastActive, faces.active, sizeof(lastActive) - 1);
-        lastActive[sizeof(lastActive) - 1] = '\0';
-        showSavedFace(faces.active);
-    } else if (messageChanged) {
-        showSavedFace("message");
-    } else if (clockChanged) {
-        showSavedFace("clock");
-    } else if (captionChanged) {
-        showSavedFace("photo");
     }
 }
 
