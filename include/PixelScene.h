@@ -23,7 +23,7 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const
 
 void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const char *timeText,
                 const char *detail, const char *clockLine, bool waiting, uint32_t now, uint32_t arrived,
-                int look);
+                int look, const char *network);
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo, int index, uint32_t now,
                     uint32_t arrived);

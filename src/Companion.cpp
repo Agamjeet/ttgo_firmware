@@ -1,5 +1,6 @@
 #include "Companion.h"
 
+#include "OtaManager.h"
 #include "PixelScene.h"
 #include "config.h"
 
@@ -79,6 +80,19 @@ static void cycleColor(uint32_t now, int step) {
 }
 
 static bool readClock(struct tm &timeinfo);
+
+static void currentNetwork(char *out, size_t size) {
+    if (size == 0) {
+        return;
+    }
+    out[0] = '\0';
+    if (WiFi.status() != WL_CONNECTED) {
+        return;
+    }
+    const String name = WiFi.SSID();
+    strncpy(out, name.c_str(), size - 1);
+    out[size - 1] = '\0';
+}
 
 static const char *setupStatus() {
     if (WiFi.status() != WL_CONNECTED) {
@@ -162,8 +176,10 @@ static void drawClockFrame(uint32_t now) {
         drawnSecond = timeinfo.tm_sec;
     }
     const bool photo = paintPhoto(1);
+    char network[33];
+    currentNetwork(network, sizeof(network));
     PixelScene::paintClock(*target(), screen->width(), screen->height(), photo, shownTime, shownDetail, clockLine,
-                           false, now, arrivedAt, animationIndex);
+                           false, now, arrivedAt, animationIndex, network);
     paintSecret(now);
     present();
 }
@@ -257,24 +273,46 @@ static void paintSecret(uint32_t now) {
     }
 }
 
+static bool themeHeldSetup = false;
+static bool pageHeldByBoard = false;
+
 static void pollKey(Key &key, uint32_t now, bool theme) {
     const int read = digitalRead(key.pin);
     if (read != key.last) {
         key.last = read;
         key.changedAt = now;
     }
-    if ((uint32_t)(now - key.changedAt) < 35 || read == key.stable) {
+    if ((uint32_t)(now - key.changedAt) < 35) {
+        return;
+    }
+    if (theme && key.stable == LOW && read == LOW && !themeHeldSetup &&
+        (uint32_t)(now - key.changedAt) >= 3000) {
+        themeHeldSetup = true;
+        OtaManager::openSetup();
+        Serial.println("companion: setup network on");
+    }
+    if (read == key.stable) {
         return;
     }
     key.stable = read;
-    if (read != LOW) {
-        return;
-    }
-    noteSecret(now, theme);
     if (theme) {
+        if (read == LOW) {
+            return;
+        }
+        if (themeHeldSetup) {
+            themeHeldSetup = false;
+            return;
+        }
+        noteSecret(now, true);
         cycleColor(now, 1);
         return;
     }
+    if (read != LOW) {
+        return;
+    }
+    noteSecret(now, false);
+    pageHeldByBoard = true;
+    Serial.println("companion: page stays with the board");
     Companion::setMode(nextMode(mode));
 }
 
@@ -397,6 +435,14 @@ void Companion::apply(DeskFaces &faces) {
     const bool picked = faces.show != 0 && faces.show != lastShow;
     if (picked) {
         lastShow = faces.show;
+        pageHeldByBoard = false;
+    }
+    if (pageHeldByBoard) {
+        if (faces.active[0] != '\0') {
+            strncpy(lastActive, faces.active, sizeof(lastActive) - 1);
+            lastActive[sizeof(lastActive) - 1] = '\0';
+        }
+        return;
     }
     if (faces.active[0] != '\0' && (picked || strcmp(faces.active, lastActive) != 0)) {
         strncpy(lastActive, faces.active, sizeof(lastActive) - 1);

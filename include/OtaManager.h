@@ -31,6 +31,7 @@ struct DeskFaces {
 namespace OtaManager {
 
 void begin();
+void openSetup();
 void onDisplayFailed();
 void forgetBackground(int index);
 bool takeScene(DisplayScene &out);

@@ -8,7 +8,7 @@ The chip is already running this program, version **1.0.0**, written over USB. A
 
 Four screens. The side button moves to the next one: message, clock, animation, photo. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink, Lilac, Dawn, Forest, Gold. The photo screen draws her picture inside a frame. The website crops that picture to the frame shape, then resizes it to 256×118.
 
-While the saved message is still on its way, the screen says Made just for you. Under that it can say Waiting for Wi-Fi, then Setting the clock. That is only before the saved screen is up. It then keeps that message, so the next time it turns on it shows the saved line straight away and replaces it when a newer one arrives. The message opens as a letter. The clock shows the time and a short line from the website. That line starts as Boss. The photo can have a short caption under the frame. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
+While the saved message is still on its way, the screen says Made just for you. Under that it can say Waiting for Wi-Fi, then Setting the clock. That is only before the saved screen is up. It then keeps that message, so the next time it turns on it shows the saved line straight away and replaces it when a newer one arrives. The message opens as a letter. The clock shows the time, a short line from the website, and the Wi-Fi name at the bottom right. That line starts as Boss. The photo can have a short caption under the frame. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
 
 Stamps the board can draw: heart, star, sparkle, smile, flower, sun, moon, and note.
 
@@ -24,7 +24,7 @@ If this Wi-Fi was never saved, or the saved one is not here, wait 30 seconds. Th
 4. Type the home Wi-Fi name and password, then save.
 5. The board leaves the setup network and joins the home Wi-Fi. Within about a minute it shows the saved screen.
 
-Do this again only if the home Wi-Fi name or password changes. Take it to that place, plug it in, and wait 30 seconds for the setup network.
+Changing network is the same page as the first join. Hold the theme button for about 3 seconds. **LoveDisplay-Setup** then shows in the phone's Wi-Fi list. The password is `lovedisplay`. Join it, open **http://192.168.4.1**, and type the new Wi-Fi name and password. The screen stays on the current picture. The setup name leaves the list after the new network connects, or after about 3 minutes. The clock shows which name it joined.
 
 ## If the Wi-Fi drops
 

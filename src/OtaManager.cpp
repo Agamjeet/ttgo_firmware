@@ -205,6 +205,9 @@ static void startPortal() {
     Serial.println("ota: join LoveDisplay-Setup, password lovedisplay, then open http://192.168.4.1");
 }
 
+static volatile bool openSetupRequested = false;
+static uint32_t voluntaryUntil = 0;
+
 static void stopPortal() {
     if (!portalOn) {
         return;
@@ -950,6 +953,7 @@ static void networkTask(void *) {
                     rememberWifi(pendingSsid, pendingPass);
                     pendingPass[0] = '\0';
                     stopPortal();
+                    voluntaryUntil = 0;
                     wasConnected = true;
                     disconnectedSince = 0;
                     otaScheduled = false;
@@ -960,6 +964,19 @@ static void networkTask(void *) {
                     pendingPass[0] = '\0';
                     Serial.println("ota: could not join that network. Setup page is still available.");
                 }
+            }
+        }
+        if (openSetupRequested) {
+            openSetupRequested = false;
+            voluntaryUntil = millis() + 3UL * 60UL * 1000UL;
+            startPortal();
+            Serial.println("ota: setup opened from the theme button");
+        }
+        if (voluntaryUntil != 0 && (int32_t)(millis() - voluntaryUntil) >= 0) {
+            voluntaryUntil = 0;
+            if (portalOn && WiFi.status() == WL_CONNECTED) {
+                stopPortal();
+                Serial.println("ota: setup closed");
             }
         }
         if (haveWifi) {
@@ -975,7 +992,7 @@ static void networkTask(void *) {
                     nextTriggerPoll = millis();
                     nextDisplayPoll = millis();
                 }
-                if (portalOn) {
+                if (portalOn && voluntaryUntil == 0) {
                     stopPortal();
                 }
                 Serial.printf("ota: Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
@@ -1108,6 +1125,10 @@ static void recallScene() {
     pendingScene = next;
     pendingFaces = faces;
     facesDirty = true;
+}
+
+void OtaManager::openSetup() {
+    openSetupRequested = true;
 }
 
 void OtaManager::begin() {

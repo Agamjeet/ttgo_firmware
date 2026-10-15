@@ -699,9 +699,19 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     drawRisingHearts(gfx, now, 3, 28, width - 36, 20, cardY + cardH - 8, mark);
 }
 
+void paintNetwork(lgfx::LovyanGFX &gfx, int width, int height, const char *network) {
+    gfx.setFont(&fonts::Font0);
+    gfx.setTextDatum(lgfx::bottom_left);
+    shadowText(gfx, FIRMWARE_VERSION, 4, height - 1, kShadow, kCream);
+    if (network != nullptr && network[0] != '\0') {
+        gfx.setTextDatum(lgfx::bottom_right);
+        shadowText(gfx, network, width - 4, height - 1, kShadow, kCream);
+    }
+}
+
 void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
                 const char *timeText, const char *detail, const char *clockLine, bool waiting,
-                uint32_t now, uint32_t arrived, int look) {
+                uint32_t now, uint32_t arrived, int look, const char *network) {
     if (look < 0 || look >= kAnimationCount) look = 0;
     applyLook(look);
     const bool day = look == 1;
@@ -724,9 +734,7 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     if (waiting) {
         gfx.setFont(&fonts::FreeSansBold12pt7b);
         shadowText(gfx, timeText, width / 2, height / 2, kShadow, kCream);
-        gfx.setFont(&fonts::Font0);
-        gfx.setTextDatum(lgfx::bottom_left);
-        shadowText(gfx, FIRMWARE_VERSION, 4, height - 1, kShadow, kCream);
+        paintNetwork(gfx, width, height, network);
         return;
     }
     gfx.setFont(&fonts::FreeSansBold24pt7b);
@@ -737,9 +745,7 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     gfx.setFont(&fonts::FreeSansBold9pt7b);
     const char *line = clockLine != nullptr && clockLine[0] != '\0' ? clockLine : "Boss";
     shadowText(gfx, line, width / 2, 139, kShadow, kLavender);
-    gfx.setFont(&fonts::Font0);
-    gfx.setTextDatum(lgfx::bottom_left);
-    shadowText(gfx, FIRMWARE_VERSION, 4, height - 1, kShadow, kCream);
+    paintNetwork(gfx, width, height, network);
 }
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
