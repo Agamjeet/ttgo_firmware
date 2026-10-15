@@ -1,6 +1,6 @@
 {
-  "version": "1.1.2",
-  "url": "https://github.com/Agamjeet/ttgo_firmware/releases/download/v1.1.2/firmware.bin",
-  "sha256": "db8c864ef86fea88f03ed73892a5cc28e65f1b7ac3703fc0d7ed5d04844c38e3",
+  "version": "1.1.5",
+  "url": "https://github.com/Agamjeet/ttgo_firmware/releases/download/v1.1.5/firmware.bin",
+  "sha256": "bed704f3fd66568d4a3a4e9705690385b925b1069b8952b873ed871eebeb8cfa",
   "status": "enabled"
 }
