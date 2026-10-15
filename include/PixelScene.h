@@ -10,6 +10,10 @@ namespace PixelScene {
 
 constexpr int kAnimationCount = 9;
 constexpr uint32_t kLetterOpenMs = 820;
+// Inner photograph. app/frameSize.js in the website must use these same pixels.
+constexpr int kFramePhotoW = 256;
+constexpr int kFramePhotoH = 118;
+constexpr int kFrameBorder = 14;
 
 const char *animationName(int index);
 
@@ -22,6 +26,11 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const c
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo, int index, uint32_t now,
                     uint32_t arrived);
+
+void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look);
+
+void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *photo, uint32_t now,
+                int look);
 
 void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height);
 

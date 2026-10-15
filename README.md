@@ -6,9 +6,9 @@ The chip is already running this program, version **1.0.0**, written over USB. A
 
 ## What she sees
 
-Three screens. The side button moves to the next one: message, clock, animation. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink, Lilac, Dawn, Forest, Gold.
+Four screens. The side button moves to the next one: message, clock, animation, photo. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink, Lilac, Dawn, Forest, Gold. The photo screen draws her picture inside a frame. The website crops that picture to the frame shape, then resizes it to 256×118.
 
-The message opens as a letter. The starting words are `Happy Bday`. The clock shows the time and the word Boss. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
+While the saved message is still on its way, the screen says Made just for you. It then keeps that message, so the next time it turns on it shows the saved line straight away and replaces it when a newer one arrives. The message opens as a letter. The clock shows the time and the word Boss. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
 
 Stamps the board can draw: heart, star, sparkle, smile, flower, sun, moon, and note.
 

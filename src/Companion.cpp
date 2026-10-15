@@ -8,8 +8,9 @@
 #include <cstring>
 
 static TDisplayS3 *screen = nullptr;
-static DisplayScene scene = {"heart", "Happy Bday", "heart"};
+static DisplayScene scene = {"heart", "", "heart"};
 static DeskMode mode = DeskMode::Message;
+static bool sceneKnown = false;
 static bool sceneChanged = true;
 static bool modeChanged = true;
 static bool ntpStarted = false;
@@ -18,8 +19,8 @@ static int drawnMinute = -1;
 static bool clockShowingTime = false;
 static bool clockStatusDrawn = false;
 static bool frameDirty = true;
-static lgfx::LGFX_Sprite *backgrounds[3] = {};
-static char backgroundNames[3][40] = {};
+static lgfx::LGFX_Sprite *backgrounds[kDeskFaceCount] = {};
+static char backgroundNames[kDeskFaceCount][40] = {};
 static char lastActive[12] = "";
 
 static lgfx::LGFX_Sprite *canvas = nullptr;
@@ -72,6 +73,15 @@ static void cycleColor(uint32_t now, int step) {
     arrivedAt = now;
     frameDirty = true;
     Serial.printf("companion: color %s\n", PixelScene::animationName(animationIndex));
+}
+
+static void drawWelcomeFrame(uint32_t now) {
+    if (screen == nullptr) {
+        return;
+    }
+    PixelScene::paintWelcome(*target(), screen->width(), screen->height(), now, animationIndex);
+    paintSecret(now);
+    present();
 }
 
 static void drawMessageFrame(uint32_t now) {
@@ -154,18 +164,13 @@ static void drawAnimationFrame(uint32_t now) {
     present();
 }
 
-static void redraw() {
-    const uint32_t now = millis();
-    if (mode == DeskMode::Message) {
-        if (messageStarted == 0) {
-            messageStarted = now;
-        }
-        drawMessageFrame(now);
-    } else if (mode == DeskMode::Clock) {
-        drawClockFrame(now);
-    } else {
-        drawAnimationFrame(now);
+static void drawPhotoFrame(uint32_t now) {
+    if (screen == nullptr) {
+        return;
     }
+    PixelScene::paintFrame(*target(), screen->width(), screen->height(), backgrounds[3], now, animationIndex);
+    paintSecret(now);
+    present();
 }
 
 static DeskMode nextMode(DeskMode current) {
@@ -175,11 +180,17 @@ static DeskMode nextMode(DeskMode current) {
     if (current == DeskMode::Clock) {
         return DeskMode::Animation;
     }
+    if (current == DeskMode::Animation) {
+        return DeskMode::Photo;
+    }
     return DeskMode::Message;
 }
 
 static DeskMode previousMode(DeskMode current) {
     if (current == DeskMode::Message) {
+        return DeskMode::Photo;
+    }
+    if (current == DeskMode::Photo) {
         return DeskMode::Animation;
     }
     if (current == DeskMode::Clock) {
@@ -194,6 +205,9 @@ static const char *modeName(DeskMode value) {
     }
     if (value == DeskMode::Animation) {
         return "animation";
+    }
+    if (value == DeskMode::Photo) {
+        return "photo";
     }
     return "message";
 }
@@ -262,11 +276,9 @@ void Companion::begin(TDisplayS3 &display) {
         canvas = nullptr;
     }
     arrivedAt = millis();
-    messageStarted = arrivedAt;
-    nextReveal = arrivedAt + PixelScene::kLetterOpenMs;
     Serial.println("companion: GPIO14 changes the screen");
     Serial.println("companion: GPIO0 changes the theme");
-    redraw();
+    drawWelcomeFrame(arrivedAt);
     modeChanged = false;
     sceneChanged = false;
     drawnSecond = -1;
@@ -275,6 +287,7 @@ void Companion::begin(TDisplayS3 &display) {
 void Companion::setScene(const DisplayScene &next) {
     scene = next;
     sceneChanged = true;
+    sceneKnown = next.message[0] != '\0';
 }
 
 static void adoptBackground(int index, BackgroundFile &file) {
@@ -302,7 +315,9 @@ static void adoptBackground(int index, BackgroundFile &file) {
         backgrounds[index]->setColorDepth(16);
     }
     backgrounds[index]->deleteSprite();
-    const bool drawn = backgrounds[index]->createSprite(screen->width(), screen->height()) &&
+    const int spriteW = index == 3 ? PixelScene::kFramePhotoW : screen->width();
+    const int spriteH = index == 3 ? PixelScene::kFramePhotoH : screen->height();
+    const bool drawn = backgrounds[index]->createSprite(spriteW, spriteH) &&
                        backgrounds[index]->drawJpg(file.jpeg, file.length, 0, 0);
     free(file.jpeg);
     file.jpeg = nullptr;
@@ -325,7 +340,8 @@ static void adoptBackground(int index, BackgroundFile &file) {
 
 void Companion::apply(DeskFaces &faces) {
     setScene(faces.message);
-    for (int i = 0; i < 3; ++i) {
+    sceneKnown = true;
+    for (int i = 0; i < kDeskFaceCount; ++i) {
         adoptBackground(i, faces.backgrounds[i]);
     }
     if (faces.active[0] != '\0' && strcmp(faces.active, lastActive) != 0) {
@@ -335,6 +351,8 @@ void Companion::apply(DeskFaces &faces) {
             setMode(DeskMode::Clock);
         } else if (strcmp(faces.active, "animation") == 0) {
             setMode(DeskMode::Animation);
+        } else if (strcmp(faces.active, "photo") == 0) {
+            setMode(DeskMode::Photo);
         } else {
             setMode(DeskMode::Message);
         }
@@ -356,6 +374,10 @@ void Companion::setMode(DeskMode next) {
         Serial.printf("companion: mode animation %s\n", PixelScene::animationName(animationIndex));
         return;
     }
+    if (mode == DeskMode::Photo) {
+        Serial.println("companion: mode photo");
+        return;
+    }
     Serial.printf("companion: mode %s\n", modeName(mode));
 }
 
@@ -364,6 +386,28 @@ void Companion::loop() {
     pollKey(nextKey, now, false);
     pollKey(prevKey, now, true);
     ensureClock();
+
+    if (!sceneKnown) {
+        static uint32_t nextFrame = 0;
+        if (frameDirty || (int32_t)(now - nextFrame) >= 0) {
+            drawWelcomeFrame(now);
+            nextFrame = now + 90;
+            frameDirty = false;
+        }
+        return;
+    }
+
+    if (mode == DeskMode::Photo) {
+        static uint32_t nextFrame = 0;
+        if (modeChanged || frameDirty || (int32_t)(now - nextFrame) >= 0) {
+            drawPhotoFrame(now);
+            nextFrame = now + 90;
+            modeChanged = false;
+            sceneChanged = false;
+            frameDirty = false;
+        }
+        return;
+    }
 
     if (mode == DeskMode::Animation) {
         static uint32_t nextFrame = 0;

@@ -49,7 +49,7 @@ static DisplayScene pendingScene = {"heart", "Happy Bday", "heart"};
 static bool sceneDirty = false;
 static DeskFaces pendingFaces = {};
 static bool facesDirty = false;
-static char loadedBackground[3][40] = {};
+static char loadedBackground[kDeskFaceCount][40] = {};
 static SemaphoreHandle_t sceneLock = nullptr;
 
 static const char kPortalPage[] = R"HTML(<!DOCTYPE html>
@@ -95,7 +95,7 @@ static String hostOf(const String &url) {
 static bool hostAllowed(const String &url) {
     String host = hostOf(url);
     return host == "github.com" || host == "raw.githubusercontent.com" ||
-           host == "objects.githubusercontent.com" ||
+           host == "objects.githubusercontent.com" || host == "media.githubusercontent.com" ||
            host == "release-assets.githubusercontent.com" ||
            host == "github-releases.githubusercontent.com";
 }
@@ -619,14 +619,16 @@ static uint8_t *downloadBackground(const char *name, size_t &outLength) {
             return nullptr;
         }
         int size = http.getSize();
-        if (size <= 0 || size > (int)kMaxJpegBytes) {
+        if (size > (int)kMaxJpegBytes) {
             Serial.println("companion: background is missing or too large");
             http.end();
             return nullptr;
         }
-        uint8_t *buffer = (uint8_t *)ps_malloc((size_t)size);
+        const bool known = size > 0;
+        const size_t cap = known ? (size_t)size : kMaxJpegBytes;
+        uint8_t *buffer = (uint8_t *)ps_malloc(cap);
         if (buffer == nullptr) {
-            buffer = (uint8_t *)malloc((size_t)size);
+            buffer = (uint8_t *)malloc(cap);
         }
         if (buffer == nullptr) {
             http.end();
@@ -635,14 +637,16 @@ static uint8_t *downloadBackground(const char *name, size_t &outLength) {
         WiFiClient *stream = http.getStreamPtr();
         size_t got = 0;
         uint32_t last = millis();
-        while (got < (size_t)size && http.connected()) {
+        while (got < cap && (http.connected() || stream->available() > 0)) {
             int available = stream->available();
             if (available > 0) {
-                int n = stream->readBytes(buffer + got, (size_t)size - got);
+                int n = stream->readBytes(buffer + got, cap - got);
                 if (n > 0) {
                     got += (size_t)n;
                     last = millis();
                 }
+            } else if (!known && got >= 4 && millis() - last > 800) {
+                break;
             } else if (millis() - last > 15000) {
                 break;
             } else {
@@ -650,7 +654,7 @@ static uint8_t *downloadBackground(const char *name, size_t &outLength) {
             }
         }
         http.end();
-        if (got != (size_t)size || buffer[0] != 0xFF || buffer[1] != 0xD8) {
+        if ((known && got != cap) || got < 4 || buffer[0] != 0xFF || buffer[1] != 0xD8) {
             free(buffer);
             Serial.println("companion: background download was incomplete");
             return nullptr;
@@ -761,18 +765,19 @@ static void pollDisplay() {
     cJSON *active = cJSON_GetObjectItem(root, "active");
     if (cJSON_IsString(active) && (strcmp(active->valuestring, "message") == 0 ||
                                    strcmp(active->valuestring, "clock") == 0 ||
-                                   strcmp(active->valuestring, "animation") == 0)) {
+                                   strcmp(active->valuestring, "animation") == 0 ||
+                                   strcmp(active->valuestring, "photo") == 0)) {
         copyField(faces.active, sizeof(faces.active), active->valuestring);
     }
     cJSON *backgrounds = cJSON_GetObjectItem(root, "backgrounds");
-    const char *keys[3] = {"message", "clock", "animation"};
-    for (int i = 0; i < 3; ++i) {
+    const char *keys[kDeskFaceCount] = {"message", "clock", "animation", "photo"};
+    for (int i = 0; i < kDeskFaceCount; ++i) {
         fillBackground(faces.backgrounds[i], i, backgrounds, keys[i]);
     }
     cJSON_Delete(root);
 
     if (sceneLock == nullptr) {
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < kDeskFaceCount; ++i) {
             free(faces.backgrounds[i].jpeg);
         }
         return;
@@ -780,12 +785,12 @@ static void pollDisplay() {
     xSemaphoreTake(sceneLock, portMAX_DELAY);
     bool changed = strcmp(pendingScene.mode, next.mode) != 0 || strcmp(pendingScene.message, next.message) != 0 ||
                    strcmp(pendingScene.icon, next.icon) != 0 || strcmp(pendingFaces.active, faces.active) != 0;
-    for (int i = 0; i < 3 && !changed; ++i) {
+    for (int i = 0; i < kDeskFaceCount && !changed; ++i) {
         changed = strcmp(pendingFaces.backgrounds[i].name, faces.backgrounds[i].name) != 0 ||
                   faces.backgrounds[i].jpeg != nullptr;
     }
     if (changed) {
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < kDeskFaceCount; ++i) {
             if (faces.backgrounds[i].jpeg == nullptr) {
                 faces.backgrounds[i].jpeg = pendingFaces.backgrounds[i].jpeg;
                 faces.backgrounds[i].length = pendingFaces.backgrounds[i].length;
@@ -798,9 +803,15 @@ static void pollDisplay() {
         pendingFaces = faces;
         sceneDirty = true;
         facesDirty = true;
+        prefs.begin("screen", false);
+        prefs.putString("mode", next.mode);
+        prefs.putString("message", next.message);
+        prefs.putString("icon", next.icon);
+        prefs.putString("active", faces.active);
+        prefs.end();
         Serial.printf("ota: new screen %s / %s\n", next.mode, next.icon);
     } else {
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < kDeskFaceCount; ++i) {
             free(faces.backgrounds[i].jpeg);
         }
     }
@@ -907,7 +918,7 @@ static void networkTask(void *) {
                 wasConnected = true;
                 wifiBackoff = 5000;
                 otaScheduled = false;
-                nextTriggerPoll = millis() + OTA_TRIGGER_INTERVAL_MS;
+                nextTriggerPoll = millis();
                 Serial.printf("ota: Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
             } else if (!connected && wasConnected) {
                 wasConnected = false;
@@ -971,7 +982,7 @@ bool OtaManager::takeFaces(DeskFaces &out) {
     }
     xSemaphoreTake(sceneLock, portMAX_DELAY);
     out = pendingFaces;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < kDeskFaceCount; ++i) {
         pendingFaces.backgrounds[i].jpeg = nullptr;
         pendingFaces.backgrounds[i].length = 0;
     }
@@ -982,10 +993,41 @@ bool OtaManager::takeFaces(DeskFaces &out) {
     return true;
 }
 
+static void recallScene() {
+    prefs.begin("screen", true);
+    String message = prefs.getString("message", "");
+    String mode = prefs.getString("mode", "heart");
+    String icon = prefs.getString("icon", "heart");
+    String active = prefs.getString("active", "message");
+    prefs.end();
+    if (message.length() == 0) {
+        return;
+    }
+    DisplayScene next = {};
+    const char *modeText = mode.c_str();
+    if (strcmp(modeText, "text") != 0 && strcmp(modeText, "emoji") != 0 && strcmp(modeText, "heart") != 0) {
+        modeText = "heart";
+    }
+    copyField(next.mode, sizeof(next.mode), modeText);
+    copyField(next.message, sizeof(next.message), message.c_str());
+    copyField(next.icon, sizeof(next.icon), allowedIcon(icon.c_str()) ? icon.c_str() : "heart");
+    DeskFaces faces = {};
+    faces.message = next;
+    const char *activeText = active.c_str();
+    if (strcmp(activeText, "clock") != 0 && strcmp(activeText, "animation") != 0) {
+        activeText = "message";
+    }
+    copyField(faces.active, sizeof(faces.active), activeText);
+    pendingScene = next;
+    pendingFaces = faces;
+    facesDirty = true;
+}
+
 void OtaManager::begin() {
     if (sceneLock == nullptr) {
         sceneLock = xSemaphoreCreateMutex();
     }
+    recallScene();
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (running != nullptr) {
         Serial.printf("ota: running slot %s\n", running->label);

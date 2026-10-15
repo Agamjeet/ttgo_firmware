@@ -4,7 +4,7 @@
 #include "TDisplayS3.hpp"
 
 // Local desk modes. Remote config can call setMode later without drawing itself.
-enum class DeskMode { Message, Clock, Animation };
+enum class DeskMode { Message, Clock, Animation, Photo };
 
 namespace Companion {
 

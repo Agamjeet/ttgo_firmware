@@ -17,10 +17,12 @@ struct BackgroundFile {
     size_t length;
 };
 
+constexpr int kDeskFaceCount = 4;
+
 struct DeskFaces {
     char active[12];
     DisplayScene message;
-    BackgroundFile backgrounds[3];
+    BackgroundFile backgrounds[kDeskFaceCount];
 };
 
 namespace OtaManager {

@@ -629,6 +629,55 @@ void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     drawDots(gfx, width, height, index);
 }
 
+void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look) {
+    if (look < 0 || look >= kAnimationCount) look = 0;
+    applyLook(look);
+    const bool day = look == 1;
+    drawSky(gfx, width, height, false);
+    if (day) {
+        drawDaySun(gfx, width - 44, 2);
+    } else {
+        drawStars(gfx, now, false);
+        drawMoon(gfx, width - 31, 2, 1);
+    }
+    const int scale = 8;
+    const int heartW = 7 * scale;
+    const int heartH = 6 * scale;
+    drawHeartAt(gfx, (width - heartW) / 2, 36, scale);
+    gfx.setFont(&fonts::FreeSansBold12pt7b);
+    gfx.setTextDatum(lgfx::middle_center);
+    shadowText(gfx, "Made just for you", width / 2, 36 + heartH + 26, kShadow, kCream);
+}
+
+void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *photo, uint32_t now,
+                int look) {
+    if (look < 0 || look >= kAnimationCount) look = 0;
+    applyLook(look);
+    const bool day = look == 1;
+    drawSky(gfx, width, height, false);
+    if (day) {
+        drawDaySun(gfx, width - 44, 2);
+    } else {
+        drawStars(gfx, now, false);
+    }
+    const int photoX = (width - kFramePhotoW) / 2;
+    const int photoY = (height - kFramePhotoH) / 2;
+    const int x = photoX - kFrameBorder;
+    const int y = photoY - kFrameBorder;
+    const int frameW = kFramePhotoW + kFrameBorder * 2;
+    const int frameH = kFramePhotoH + kFrameBorder * 2;
+    gfx.fillRect(x, y, frameW, frameH, kShadow);
+    gfx.fillRect(x + 4, y + 4, frameW - 8, frameH - 8, kCream);
+    gfx.fillRect(x + 8, y + 8, frameW - 16, frameH - 16, rgb(92, 54, 36));
+    gfx.fillRect(photoX - 3, photoY - 3, kFramePhotoW + 6, kFramePhotoH + 6, kInk);
+    if (photo != nullptr && photo->width() == kFramePhotoW && photo->height() == kFramePhotoH) {
+        photo->pushSprite(&gfx, photoX, photoY);
+        return;
+    }
+    gfx.fillRect(photoX, photoY, kFramePhotoW, kFramePhotoH, kPaper);
+    drawHeartAt(gfx, photoX + kFramePhotoW / 2 - 14, photoY + kFramePhotoH / 2 - 12, 4);
+}
+
 void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height) {
     drawHeartAt(gfx, width / 2 - 62, height / 2 - 8, 2);
     drawHeartAt(gfx, width / 2 + 44, height / 2 - 8, 2);
