@@ -1,11 +1,12 @@
 {
   "mode": "heart",
-  "message": "Happy Bday",
+  "message": "Important check",
   "icon": "heart",
-  "active": "message",
+  "active": "clock",
   "backgrounds": {
     "message": "",
-    "clock": "",
-    "animation": ""
+    "clock": "clock-889f41fbda9e.jpg",
+    "animation": "",
+    "photo": "photo-ae896e585fd8.jpg"
   }
 }
