@@ -2,7 +2,7 @@
   "mode": "heart",
   "message": "Important check",
   "icon": "heart",
-  "active": "animation",
+  "active": "clock",
   "backgrounds": {
     "message": "",
     "clock": "clock-889f41fbda9e.jpg",
