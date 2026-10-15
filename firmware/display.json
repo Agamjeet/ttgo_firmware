@@ -1,8 +1,8 @@
 {
   "mode": "heart",
-  "message": "Happy Bday",
+  "message": "Important check",
   "icon": "heart",
-  "active": "message",
+  "active": "animation",
   "backgrounds": {
     "message": "",
     "clock": "",
