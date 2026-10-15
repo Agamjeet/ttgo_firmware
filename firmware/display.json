@@ -2,14 +2,14 @@
   "mode": "heart",
   "message": "how r u doin",
   "icon": "heart",
-  "active": "photo",
+  "active": "clock",
   "backgrounds": {
     "message": "",
     "clock": "clock-889f41fbda9e.jpg",
     "animation": "",
     "photo": "photo-ae896e585fd8.jpg"
   },
-  "clockLine": "Baby",
+  "clockLine": "Boss",
   "photoCaption": "Cutie detected ihehe",
-  "show": 7
+  "show": 8
 }
