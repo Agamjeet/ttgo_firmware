@@ -1,8 +1,8 @@
 {
   "mode": "heart",
-  "message": "Happy Bday!!",
+  "message": "Happy Bday",
   "icon": "heart",
-  "active": "message",
+  "active": "clock",
   "backgrounds": {
     "message": "",
     "clock": "clock-889f41fbda9e.jpg",
@@ -10,5 +10,6 @@
     "photo": "photo-ae896e585fd8.jpg"
   },
   "clockLine": "Boss",
-  "photoCaption": ""
+  "photoCaption": "",
+  "show": 1
 }
