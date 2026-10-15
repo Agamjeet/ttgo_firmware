@@ -1,15 +1,15 @@
 {
   "mode": "heart",
-  "message": "how r u doin",
+  "message": "Happy Bday!!",
   "icon": "heart",
-  "active": "clock",
+  "active": "animation",
   "backgrounds": {
     "message": "",
-    "clock": "clock-889f41fbda9e.jpg",
+    "clock": "",
     "animation": "",
     "photo": "photo-3ae5eab7d03f.jpg"
   },
   "clockLine": "Boss",
   "photoCaption": "Cutie detected",
-  "show": 8
+  "show": 9
 }
