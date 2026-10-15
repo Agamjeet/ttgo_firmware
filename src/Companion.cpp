@@ -22,6 +22,9 @@ static bool frameDirty = true;
 static lgfx::LGFX_Sprite *backgrounds[kDeskFaceCount] = {};
 static char backgroundNames[kDeskFaceCount][40] = {};
 static char lastActive[12] = "";
+static uint32_t lastShow = 0;
+static char clockLine[19] = "Boss";
+static char photoCaption[23] = "";
 
 static lgfx::LGFX_Sprite *canvas = nullptr;
 static int animationIndex = 0;
@@ -75,11 +78,24 @@ static void cycleColor(uint32_t now, int step) {
     Serial.printf("companion: color %s\n", PixelScene::animationName(animationIndex));
 }
 
+static bool readClock(struct tm &timeinfo);
+
+static const char *setupStatus() {
+    if (WiFi.status() != WL_CONNECTED) {
+        return "Waiting for Wi-Fi";
+    }
+    struct tm timeinfo;
+    if (!readClock(timeinfo)) {
+        return "Setting the clock";
+    }
+    return "";
+}
+
 static void drawWelcomeFrame(uint32_t now) {
     if (screen == nullptr) {
         return;
     }
-    PixelScene::paintWelcome(*target(), screen->width(), screen->height(), now, animationIndex);
+    PixelScene::paintWelcome(*target(), screen->width(), screen->height(), now, animationIndex, setupStatus());
     paintSecret(now);
     present();
 }
@@ -118,7 +134,10 @@ static void drawClockFrame(uint32_t now) {
     ensureClock();
     struct tm timeinfo;
     const bool ready = readClock(timeinfo);
-    bool waiting = false;
+    if (!ready && cachedTime[0] == '\0') {
+        drawWelcomeFrame(now);
+        return;
+    }
     const char *shownTime = cachedTime;
     const char *shownDetail = cachedDetail;
     if (ready) {
@@ -141,15 +160,10 @@ static void drawClockFrame(uint32_t now) {
         clockShowingTime = true;
         drawnMinute = timeinfo.tm_hour * 60 + timeinfo.tm_min;
         drawnSecond = timeinfo.tm_sec;
-    } else if (cachedTime[0] == '\0') {
-        waiting = true;
-        shownTime = WiFi.status() == WL_CONNECTED ? "Setting the clock" : "Waiting for Wi-Fi";
-        shownDetail = "";
-        clockStatusDrawn = true;
     }
     const bool photo = paintPhoto(1);
-    PixelScene::paintClock(*target(), screen->width(), screen->height(), photo, shownTime, shownDetail, waiting,
-                           now, arrivedAt, animationIndex);
+    PixelScene::paintClock(*target(), screen->width(), screen->height(), photo, shownTime, shownDetail, clockLine,
+                           false, now, arrivedAt, animationIndex);
     paintSecret(now);
     present();
 }
@@ -168,7 +182,8 @@ static void drawPhotoFrame(uint32_t now) {
     if (screen == nullptr) {
         return;
     }
-    PixelScene::paintFrame(*target(), screen->width(), screen->height(), backgrounds[3], now, animationIndex);
+    PixelScene::paintFrame(*target(), screen->width(), screen->height(), backgrounds[3], now, animationIndex,
+                           photoCaption);
     paintSecret(now);
     present();
 }
@@ -285,9 +300,15 @@ void Companion::begin(TDisplayS3 &display) {
 }
 
 void Companion::setScene(const DisplayScene &next) {
+    const bool different = strcmp(scene.mode, next.mode) != 0 || strcmp(scene.message, next.message) != 0 ||
+                           strcmp(scene.icon, next.icon) != 0;
     scene = next;
-    sceneChanged = true;
-    sceneKnown = next.message[0] != '\0';
+    if (different) {
+        sceneChanged = true;
+    }
+    if (next.message[0] != '\0') {
+        sceneKnown = true;
+    }
 }
 
 static void adoptBackground(int index, BackgroundFile &file) {
@@ -338,13 +359,26 @@ static void adoptBackground(int index, BackgroundFile &file) {
     }
 }
 
+static void copyLine(char *dest, size_t size, const char *value, const char *fallback) {
+    const char *source = value != nullptr && value[0] != '\0' ? value : fallback;
+    strncpy(dest, source, size - 1);
+    dest[size - 1] = '\0';
+}
+
 void Companion::apply(DeskFaces &faces) {
     setScene(faces.message);
     sceneKnown = true;
+    copyLine(clockLine, sizeof(clockLine), faces.clockLine, "Boss");
+    copyLine(photoCaption, sizeof(photoCaption), faces.photoCaption, "");
+    frameDirty = true;
     for (int i = 0; i < kDeskFaceCount; ++i) {
         adoptBackground(i, faces.backgrounds[i]);
     }
-    if (faces.active[0] != '\0' && strcmp(faces.active, lastActive) != 0) {
+    const bool picked = faces.show != 0 && faces.show != lastShow;
+    if (picked) {
+        lastShow = faces.show;
+    }
+    if (faces.active[0] != '\0' && (picked || strcmp(faces.active, lastActive) != 0)) {
         strncpy(lastActive, faces.active, sizeof(lastActive) - 1);
         lastActive[sizeof(lastActive) - 1] = '\0';
         if (strcmp(faces.active, "clock") == 0) {

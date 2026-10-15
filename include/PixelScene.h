@@ -22,15 +22,16 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const
                   int look);
 
 void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo, const char *timeText,
-                const char *detail, bool waiting, uint32_t now, uint32_t arrived, int look);
+                const char *detail, const char *clockLine, bool waiting, uint32_t now, uint32_t arrived,
+                int look);
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo, int index, uint32_t now,
                     uint32_t arrived);
 
-void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look);
+void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look, const char *status);
 
 void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *photo, uint32_t now,
-                int look);
+                int look, const char *caption);
 
 void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height);
 

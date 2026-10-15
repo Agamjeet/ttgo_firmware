@@ -21,6 +21,9 @@ constexpr int kDeskFaceCount = 4;
 
 struct DeskFaces {
     char active[12];
+    char clockLine[19];
+    char photoCaption[23];
+    uint32_t show;
     DisplayScene message;
     BackgroundFile backgrounds[kDeskFaceCount];
 };

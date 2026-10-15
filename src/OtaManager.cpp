@@ -30,7 +30,9 @@ static const size_t kMaxJpegBytes = 80000;
 static Preferences prefs;
 static WebServer portal(80);
 static DNSServer dns;
-static bool portalOn = false;
+static volatile bool portalOn = false;
+static uint32_t disconnectedSince = 0;
+static const uint32_t kSetupAfterMs = 30000;
 static bool saveRequested = false;
 static char pendingSsid[33];
 static char pendingPass[65];
@@ -38,10 +40,12 @@ static char savedSsid[33];
 static char savedPass[65];
 static bool haveWifi = false;
 static bool wasConnected = false;
+static bool hadLink = false;
 static uint32_t nextWifiAttempt = 0;
 static uint32_t wifiBackoff = 5000;
 static uint32_t nextOtaCheck = 0;
 static uint32_t nextTriggerPoll = 0;
+static uint32_t nextDisplayPoll = 0;
 static uint32_t lastTriggerId = 0;
 static bool otaScheduled = false;
 static bool forceCheck = false;
@@ -182,6 +186,9 @@ static void handleSave() {
 }
 
 static void startPortal() {
+    if (portalOn) {
+        return;
+    }
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(kApSsid, kApPassword);
     dns.start(53, "*", WiFi.softAPIP());
@@ -229,6 +236,7 @@ static void clearWifi() {
     savedPass[0] = '\0';
     haveWifi = false;
     wasConnected = false;
+    hadLink = false;
     otaScheduled = false;
     WiFi.disconnect(true, true);
     Serial.println("ota: Wi-Fi settings cleared");
@@ -510,13 +518,23 @@ static void rememberTriggerId(uint32_t id) {
     prefs.end();
 }
 
-// Looks at firmware/check.json. A higher id asks the board to check the release.
-static void pollRemoteTrigger() {
+static String freshUrl(const char *fileName) {
     String url = GITHUB_MANIFEST_URL;
     if (!url.endsWith("manifest.json")) {
+        return "";
+    }
+    url.replace("manifest.json", fileName);
+    url += "?t=";
+    url += String(millis());
+    return url;
+}
+
+// Looks at firmware/check.json. A higher id asks the board to check the release.
+static void pollRemoteTrigger() {
+    String url = freshUrl("check.json");
+    if (url.length() == 0) {
         return;
     }
-    url.replace("manifest.json", "check.json");
 
     WiFiClientSecure client;
     trust(client);
@@ -715,11 +733,10 @@ static void copyField(char *dest, size_t size, const char *value) {
 }
 
 static void pollDisplay() {
-    String url = GITHUB_MANIFEST_URL;
-    if (!url.endsWith("manifest.json")) {
+    String url = freshUrl("display.json");
+    if (url.length() == 0) {
         return;
     }
-    url.replace("manifest.json", "display.json");
 
     WiFiClientSecure client;
     trust(client);
@@ -769,6 +786,20 @@ static void pollDisplay() {
                                    strcmp(active->valuestring, "photo") == 0)) {
         copyField(faces.active, sizeof(faces.active), active->valuestring);
     }
+    cJSON *clockLine = cJSON_GetObjectItem(root, "clockLine");
+    if (cJSON_IsString(clockLine) && clockLine->valuestring[0] != '\0') {
+        copyField(faces.clockLine, sizeof(faces.clockLine), clockLine->valuestring);
+    } else {
+        copyField(faces.clockLine, sizeof(faces.clockLine), "Boss");
+    }
+    cJSON *photoCaption = cJSON_GetObjectItem(root, "photoCaption");
+    if (cJSON_IsString(photoCaption)) {
+        copyField(faces.photoCaption, sizeof(faces.photoCaption), photoCaption->valuestring);
+    }
+    cJSON *show = cJSON_GetObjectItem(root, "show");
+    if (cJSON_IsNumber(show) && show->valuedouble > 0 && show->valuedouble < 1000000) {
+        faces.show = (uint32_t)show->valuedouble;
+    }
     cJSON *backgrounds = cJSON_GetObjectItem(root, "backgrounds");
     const char *keys[kDeskFaceCount] = {"message", "clock", "animation", "photo"};
     for (int i = 0; i < kDeskFaceCount; ++i) {
@@ -784,7 +815,10 @@ static void pollDisplay() {
     }
     xSemaphoreTake(sceneLock, portMAX_DELAY);
     bool changed = strcmp(pendingScene.mode, next.mode) != 0 || strcmp(pendingScene.message, next.message) != 0 ||
-                   strcmp(pendingScene.icon, next.icon) != 0 || strcmp(pendingFaces.active, faces.active) != 0;
+                   strcmp(pendingScene.icon, next.icon) != 0 || strcmp(pendingFaces.active, faces.active) != 0 ||
+                   strcmp(pendingFaces.clockLine, faces.clockLine) != 0 ||
+                   strcmp(pendingFaces.photoCaption, faces.photoCaption) != 0 ||
+                   pendingFaces.show != faces.show;
     for (int i = 0; i < kDeskFaceCount && !changed; ++i) {
         changed = strcmp(pendingFaces.backgrounds[i].name, faces.backgrounds[i].name) != 0 ||
                   faces.backgrounds[i].jpeg != nullptr;
@@ -808,6 +842,9 @@ static void pollDisplay() {
         prefs.putString("message", next.message);
         prefs.putString("icon", next.icon);
         prefs.putString("active", faces.active);
+        prefs.putString("clock", faces.clockLine);
+        prefs.putString("caption", faces.photoCaption);
+        prefs.putUInt("show", faces.show);
         prefs.end();
         Serial.printf("ota: new screen %s / %s\n", next.mode, next.icon);
     } else {
@@ -890,6 +927,7 @@ static void networkTask(void *) {
         Serial.printf("ota: connecting to \"%s\"\n", savedSsid);
         WiFi.begin(savedSsid, savedPass);
         nextWifiAttempt = millis();
+        disconnectedSince = millis();
     }
 
     for (;;) {
@@ -905,38 +943,72 @@ static void networkTask(void *) {
                     pendingPass[0] = '\0';
                     stopPortal();
                     wasConnected = true;
+                    disconnectedSince = 0;
                     otaScheduled = false;
+                    nextTriggerPoll = millis();
+                    nextDisplayPoll = millis();
                     Serial.printf("ota: Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
                 } else {
                     pendingPass[0] = '\0';
                     Serial.println("ota: could not join that network. Setup page is still available.");
                 }
             }
-        } else if (haveWifi) {
+        }
+        if (haveWifi) {
             bool connected = WiFi.status() == WL_CONNECTED;
             if (connected && !wasConnected) {
+                const bool firstLink = !hadLink;
                 wasConnected = true;
+                hadLink = true;
                 wifiBackoff = 5000;
-                otaScheduled = false;
-                nextTriggerPoll = millis();
+                disconnectedSince = 0;
+                if (firstLink) {
+                    otaScheduled = false;
+                    nextTriggerPoll = millis();
+                    nextDisplayPoll = millis();
+                }
+                if (portalOn) {
+                    stopPortal();
+                }
                 Serial.printf("ota: Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
             } else if (!connected && wasConnected) {
                 wasConnected = false;
-                otaScheduled = false;
-                Serial.println("ota: Wi-Fi lost, retrying without restarting");
-            } else if (!connected && millis() - nextWifiAttempt >= wifiBackoff) {
+                disconnectedSince = millis();
+                nextWifiAttempt = millis();
+                wifiBackoff = 15000;
+                Serial.println("ota: Wi-Fi lost, keeping the current screen");
+            } else if (!connected && !portalOn && millis() - nextWifiAttempt >= wifiBackoff) {
+                if (disconnectedSince == 0) {
+                    disconnectedSince = millis();
+                }
                 Serial.printf("ota: reconnecting to \"%s\"\n", savedSsid);
                 WiFi.disconnect(false);
                 WiFi.begin(savedSsid, savedPass);
                 nextWifiAttempt = millis();
                 wifiBackoff = wifiBackoff < 60000 ? wifiBackoff * 2 : 60000;
+            } else if (!connected && disconnectedSince == 0) {
+                disconnectedSince = millis();
+            }
+
+            if (!connected && !portalOn && disconnectedSince != 0 &&
+                (int32_t)(millis() - disconnectedSince) >= (int32_t)kSetupAfterMs) {
+                Serial.println("ota: saved Wi-Fi is not here, opening setup");
+                startPortal();
             }
 
             if (connected) {
                 uint32_t now = millis();
                 if ((int32_t)(now - nextTriggerPoll) >= 0) {
+                    uint32_t seen = lastTriggerId;
                     nextTriggerPoll = now + OTA_TRIGGER_INTERVAL_MS;
                     pollRemoteTrigger();
+                    if (lastTriggerId != seen) {
+                        pollDisplay();
+                        nextDisplayPoll = now + OTA_DISPLAY_INTERVAL_MS;
+                    }
+                }
+                if ((int32_t)(now - nextDisplayPoll) >= 0) {
+                    nextDisplayPoll = now + OTA_DISPLAY_INTERVAL_MS;
                     pollDisplay();
                 }
                 if (!otaScheduled) {
@@ -999,6 +1071,9 @@ static void recallScene() {
     String mode = prefs.getString("mode", "heart");
     String icon = prefs.getString("icon", "heart");
     String active = prefs.getString("active", "message");
+    String clock = prefs.getString("clock", "Boss");
+    String caption = prefs.getString("caption", "");
+    uint32_t show = prefs.getUInt("show", 0);
     prefs.end();
     if (message.length() == 0) {
         return;
@@ -1014,10 +1089,14 @@ static void recallScene() {
     DeskFaces faces = {};
     faces.message = next;
     const char *activeText = active.c_str();
-    if (strcmp(activeText, "clock") != 0 && strcmp(activeText, "animation") != 0) {
+    if (strcmp(activeText, "clock") != 0 && strcmp(activeText, "animation") != 0 &&
+        strcmp(activeText, "photo") != 0) {
         activeText = "message";
     }
     copyField(faces.active, sizeof(faces.active), activeText);
+    copyField(faces.clockLine, sizeof(faces.clockLine), clock.length() ? clock.c_str() : "Boss");
+    copyField(faces.photoCaption, sizeof(faces.photoCaption), caption.c_str());
+    faces.show = show;
     pendingScene = next;
     pendingFaces = faces;
     facesDirty = true;

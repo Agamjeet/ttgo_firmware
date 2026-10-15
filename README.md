@@ -8,26 +8,33 @@ The chip is already running this program, version **1.0.0**, written over USB. A
 
 Four screens. The side button moves to the next one: message, clock, animation, photo. The other button changes the theme on every screen: Night, Sunny, Sunset, Sea, Pink, Lilac, Dawn, Forest, Gold. The photo screen draws her picture inside a frame. The website crops that picture to the frame shape, then resizes it to 256×118.
 
-While the saved message is still on its way, the screen says Made just for you. It then keeps that message, so the next time it turns on it shows the saved line straight away and replaces it when a newer one arrives. The message opens as a letter. The clock shows the time and the word Boss. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
+While the saved message is still on its way, the screen says Made just for you. Under that it can say Waiting for Wi-Fi, then Setting the clock. That is only before the saved screen is up. It then keeps that message, so the next time it turns on it shows the saved line straight away and replaces it when a newer one arrives. The message opens as a letter. The clock shows the time and a short line from the website. That line starts as Boss. The photo can have a short caption under the frame. The animation shows the dinosaur, hearts, and sunflowers. A picture, when one is saved, sits behind those. The moon, sun, stars, and clouds are left off when a picture is there.
 
 Stamps the board can draw: heart, star, sparkle, smile, flower, sun, moon, and note.
 
 ## For the receiver
 
-This is the only setup. It is done once, on the Wi-Fi where the board will stay. After that, plug it into a charger and it shows the screen by itself. No computer and no app.
+Plug it into a charger. If it already knows this Wi-Fi, it joins by itself and shows the saved screen. No computer and no app.
 
-1. Plug the board into a phone charger or any USB power supply. Wait until the screen is on.
-2. On the phone, open Wi-Fi and join **LoveDisplay-Setup**. The password is `lovedisplay`.
-3. The phone may say this network has no internet. Stay connected anyway.
-4. Open the phone browser and go to **http://192.168.4.1**
-5. Type the home Wi-Fi name and password, then save.
-6. The board leaves the setup network and joins the home Wi-Fi. Within about a minute it shows the saved screen.
+If this Wi-Fi was never saved, or the saved one is not here, wait 30 seconds. The board then offers a setup network. The screen itself stays on the heart or the last saved picture. It does not print the setup name on the screen.
 
-Do this again only if the home Wi-Fi name or password changes.
+1. On the phone, open Wi-Fi and join **LoveDisplay-Setup**. The password is `lovedisplay`.
+2. The phone may say this network has no internet. Stay connected anyway.
+3. Open the phone browser and go to **http://192.168.4.1**
+4. Type the home Wi-Fi name and password, then save.
+5. The board leaves the setup network and joins the home Wi-Fi. Within about a minute it shows the saved screen.
+
+Do this again only if the home Wi-Fi name or password changes. Take it to that place, plug it in, and wait 30 seconds for the setup network.
+
+## If the Wi-Fi drops
+
+A short drop does not change the screen. The message, clock, photo, and buttons keep working. It does not go back to Waiting for Wi-Fi, and it does not start the picture over when the signal returns.
+
+It waits 15 seconds before trying the saved Wi-Fi again, so a blip of a few seconds can heal by itself. The setup network starts only after the saved Wi-Fi has been missing for 30 seconds. New pictures from the website wait until Wi-Fi is back. Anything already on the screen stays.
 
 ## What you can change after it is given away
 
-Messages, stamps, pictures, and which screen is showing do **not** need a new `firmware.bin`. The website writes `firmware/display.json`. The board reads that about every 30 seconds while it has Wi-Fi.
+Messages, stamps, pictures, and which screen is showing do **not** need a new `firmware.bin`. The website writes `firmware/display.json`. After it joins Wi-Fi it reads that right away. After a save, the board notices within about 15 seconds and then reads the new message. It also reads the saved screen about every 30 seconds, so a missed save still arrives. It does not call GitHub more often than that.
 
 A new program file is only for a change to the C++ itself, such as a new drawing. The version in `include/firmware_version.h` is `1.0.0`. The board installs a release only when the published version is **higher** than that. Publishing `1.0.0` again does nothing. The release listed in `firmware/manifest.json` is disabled, so it will not replace the program already on the chip.
 
@@ -107,6 +114,6 @@ The repository is [Agamjeet/ttgo_firmware](https://github.com/Agamjeet/ttgo_firm
 https://raw.githubusercontent.com/Agamjeet/ttgo_firmware/main/firmware/manifest.json
 ```
 
-It checks about 20 seconds after it joins Wi-Fi, then about every 6 hours. Raising `firmware/check.json` asks it to look sooner. The website does that when you save or publish. If the release status is `disabled`, or the checksum does not match, the board keeps the program it already has.
+A new program is a separate check from the message. The board looks about 20 seconds after it first joins Wi-Fi, then about every 6 hours. If that check fails, it tries again in 5 minutes. Raising `firmware/check.json` asks it to look on the next 15-second pass. The website does that when you save or publish. Saving a message does not download a new program. If the release status is `disabled`, or the checksum does not match, the board keeps the program it already has.
 
 The website repository is [Agamjeet/ttgo_control_panel](https://github.com/Agamjeet/ttgo_control_panel).

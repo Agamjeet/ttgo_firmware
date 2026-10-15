@@ -582,7 +582,7 @@ void paintMessage(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
 }
 
 void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
-                const char *timeText, const char *detail, bool waiting,
+                const char *timeText, const char *detail, const char *clockLine, bool waiting,
                 uint32_t now, uint32_t arrived, int look) {
     if (look < 0 || look >= kAnimationCount) look = 0;
     applyLook(look);
@@ -614,7 +614,8 @@ void paintClock(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     gfx.setFont(&fonts::FreeSansBold12pt7b);
     shadowText(gfx, detail, width / 2, 108, rgb(48, 16, 40), kPink);
     gfx.setFont(&fonts::FreeSansBold9pt7b);
-    shadowText(gfx, "Boss", width / 2, 139, kShadow, kLavender);
+    const char *line = clockLine != nullptr && clockLine[0] != '\0' ? clockLine : "Boss";
+    shadowText(gfx, line, width / 2, 139, kShadow, kLavender);
 }
 
 void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
@@ -629,7 +630,7 @@ void paintAnimation(lgfx::LovyanGFX &gfx, int width, int height, bool photo,
     drawDots(gfx, width, height, index);
 }
 
-void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look) {
+void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int look, const char *status) {
     if (look < 0 || look >= kAnimationCount) look = 0;
     applyLook(look);
     const bool day = look == 1;
@@ -647,13 +648,18 @@ void paintWelcome(lgfx::LovyanGFX &gfx, int width, int height, uint32_t now, int
     gfx.setFont(&fonts::FreeSansBold12pt7b);
     gfx.setTextDatum(lgfx::middle_center);
     shadowText(gfx, "Made just for you", width / 2, 36 + heartH + 26, kShadow, kCream);
+    if (status != nullptr && status[0] != '\0') {
+        gfx.setFont(&fonts::FreeSansBold9pt7b);
+        shadowText(gfx, status, width / 2, 36 + heartH + 52, kShadow, kLavender);
+    }
 }
 
 void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *photo, uint32_t now,
-                int look) {
+                int look, const char *caption) {
     if (look < 0 || look >= kAnimationCount) look = 0;
     applyLook(look);
     const bool day = look == 1;
+    const bool labeled = caption != nullptr && caption[0] != '\0';
     drawSky(gfx, width, height, false);
     if (day) {
         drawDaySun(gfx, width - 44, 2);
@@ -661,7 +667,7 @@ void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *
         drawStars(gfx, now, false);
     }
     const int photoX = (width - kFramePhotoW) / 2;
-    const int photoY = (height - kFramePhotoH) / 2;
+    const int photoY = labeled ? 16 : (height - kFramePhotoH) / 2;
     const int x = photoX - kFrameBorder;
     const int y = photoY - kFrameBorder;
     const int frameW = kFramePhotoW + kFrameBorder * 2;
@@ -672,10 +678,15 @@ void paintFrame(lgfx::LovyanGFX &gfx, int width, int height, lgfx::LGFX_Sprite *
     gfx.fillRect(photoX - 3, photoY - 3, kFramePhotoW + 6, kFramePhotoH + 6, kInk);
     if (photo != nullptr && photo->width() == kFramePhotoW && photo->height() == kFramePhotoH) {
         photo->pushSprite(&gfx, photoX, photoY);
-        return;
+    } else {
+        gfx.fillRect(photoX, photoY, kFramePhotoW, kFramePhotoH, kPaper);
+        drawHeartAt(gfx, photoX + kFramePhotoW / 2 - 14, photoY + kFramePhotoH / 2 - 12, 4);
     }
-    gfx.fillRect(photoX, photoY, kFramePhotoW, kFramePhotoH, kPaper);
-    drawHeartAt(gfx, photoX + kFramePhotoW / 2 - 14, photoY + kFramePhotoH / 2 - 12, 4);
+    if (labeled) {
+        gfx.setFont(&fonts::FreeSansBold9pt7b);
+        gfx.setTextDatum(lgfx::middle_center);
+        shadowText(gfx, caption, width / 2, height - 9, kShadow, kCream);
+    }
 }
 
 void paintWhisper(lgfx::LovyanGFX &gfx, int width, int height) {
