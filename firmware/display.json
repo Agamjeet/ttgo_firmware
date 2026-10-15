@@ -1,8 +1,8 @@
 {
-  "mode": "heart",
+  "mode": "emoji",
   "message": "Happy Bday!!",
-  "icon": "heart",
-  "active": "animation",
+  "icon": "note",
+  "active": "photo",
   "backgrounds": {
     "message": "",
     "clock": "",
@@ -11,5 +11,5 @@
   },
   "clockLine": "Boss",
   "photoCaption": "Cutie detected",
-  "show": 9
+  "show": 10
 }
