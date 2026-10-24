@@ -1,15 +1,15 @@
 {
   "mode": "emoji",
-  "message": "Happy Bday!!",
-  "icon": "heart",
+  "message": "Flowers for you!",
+  "icon": "flower",
   "active": "message",
   "backgrounds": {
     "message": "",
     "clock": "",
     "animation": "",
-    "photo": "photo-246698f1170c.jpg"
+    "photo": "photo-280967c518a8.jpg"
   },
   "clockLine": "Boss",
-  "photoCaption": "Cutie detected :)",
+  "photoCaption": "Us hehe :)",
   "show": 11
 }
