@@ -1,15 +1,15 @@
 {
   "mode": "emoji",
-  "message": "Flowers for you!",
-  "icon": "flower",
+  "message": "You make me happy!",
+  "icon": "smile",
   "active": "message",
   "backgrounds": {
     "message": "",
     "clock": "",
     "animation": "",
-    "photo": "photo-280967c518a8.jpg"
+    "photo": "photo-e17fb109990d.jpg"
   },
-  "clockLine": "Boss",
-  "photoCaption": "Us hehe :)",
+  "clockLine": "hotie",
+  "photoCaption": "cutie in my arm",
   "show": 11
 }
