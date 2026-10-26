@@ -1,15 +1,15 @@
 {
   "mode": "emoji",
-  "message": "You make me happy!",
-  "icon": "smile",
+  "message": "Good Morning Sunshine!",
+  "icon": "sun",
   "active": "message",
   "backgrounds": {
     "message": "",
     "clock": "",
     "animation": "",
-    "photo": "photo-e17fb109990d.jpg"
+    "photo": "photo-06e93faa33fb.jpg"
   },
-  "clockLine": "hotie",
-  "photoCaption": "cutie in my arm",
+  "clockLine": "Hey talker..",
+  "photoCaption": "",
   "show": 11
 }
