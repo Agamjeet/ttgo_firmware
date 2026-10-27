@@ -2,7 +2,7 @@
   "mode": "emoji",
   "message": "Good Morning Sunshine!",
   "icon": "sun",
-  "active": "message",
+  "active": "clock",
   "backgrounds": {
     "message": "",
     "clock": "",
@@ -11,5 +11,5 @@
   },
   "clockLine": "Hey talker..",
   "photoCaption": "digital flowers for u",
-  "show": 11
+  "show": 12
 }
