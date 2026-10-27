@@ -1,15 +1,15 @@
 {
   "mode": "emoji",
-  "message": "Good Morning Sunshine!",
-  "icon": "sun",
+  "message": "Work hard!!",
+  "icon": "star",
   "active": "clock",
   "backgrounds": {
-    "message": "",
-    "clock": "",
+    "message": "message-77b9f2d9fbc3.jpg",
+    "clock": "clock-08d042e25224.jpg",
     "animation": "",
-    "photo": "photo-06e93faa33fb.jpg"
+    "photo": "photo-e8f22ed98043.jpg"
   },
-  "clockLine": "Hey talker..",
-  "photoCaption": "digital flowers for u",
+  "clockLine": "KItten hehe",
+  "photoCaption": "Hugs",
   "show": 14
 }
