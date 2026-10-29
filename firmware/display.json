@@ -1,15 +1,15 @@
 {
-  "mode": "emoji",
-  "message": "Goodlck for the OPD boss",
-  "icon": "smile",
+  "mode": "heart",
+  "message": "We will be better",
+  "icon": "heart",
   "active": "clock",
   "backgrounds": {
     "message": "",
-    "clock": "clock-08d042e25224.jpg",
+    "clock": "",
     "animation": "",
-    "photo": "photo-a32198eba563.jpg"
+    "photo": "photo-d26bc67f18d6.jpg"
   },
-  "clockLine": "KItten hehe",
-  "photoCaption": "my kitten today",
+  "clockLine": "tbd",
+  "photoCaption": "I care for you too",
   "show": 14
 }
