@@ -2,7 +2,7 @@
   "mode": "emoji",
   "message": "We fell in love in oct ,back massage?",
   "icon": "sparkle",
-  "active": "clock",
+  "active": "photo",
   "backgrounds": {
     "message": "",
     "clock": "",
@@ -11,5 +11,5 @@
   },
   "clockLine": "Happy bb",
   "photoCaption": "My baby happy",
-  "show": 14
+  "show": 15
 }
