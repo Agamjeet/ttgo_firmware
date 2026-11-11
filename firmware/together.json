@@ -1,0 +1,34 @@
+{
+  "ideas": [
+    {
+      "id": "movie-eyes-wide-shut",
+      "title": "Watch a movie",
+      "detail": "Eyes Wide Shut — movie with Deepali.",
+      "link": ""
+    },
+    {
+      "id": "minecraft",
+      "title": "Play Minecraft",
+      "detail": "Join the same world and build something together.",
+      "link": ""
+    },
+    {
+      "id": "truth-or-dare",
+      "title": "Truth or dare",
+      "detail": "Take turns on truthordare.com.",
+      "link": "https://truthordare.com/"
+    },
+    {
+      "id": "skribbl",
+      "title": "Skribbl",
+      "detail": "A private room. One of you draws, the other guesses.",
+      "link": "https://skribbl.io/"
+    },
+    {
+      "id": "idea-1794398921005",
+      "title": "Stuff I can buy for her",
+      "detail": "1-flowers 2-lego sets -https://brixarc.com/",
+      "link": ""
+    }
+  ]
+}
