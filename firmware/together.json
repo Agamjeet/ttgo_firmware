@@ -4,7 +4,16 @@
       "id": "movie-eyes-wide-shut",
       "title": "Watch a movie",
       "detail": "Eyes Wide Shut — movie with Deepali.",
-      "links": []
+      "links": [
+        {
+          "name": "watch2gether",
+          "url": "https://w2g.tv/en/"
+        },
+        {
+          "name": "teleparty",
+          "url": "https://www.teleparty.com/"
+        }
+      ]
     },
     {
       "id": "minecraft",
