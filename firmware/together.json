@@ -59,6 +59,17 @@
       "title": "When together",
       "detail": "Painting class",
       "links": []
+    },
+    {
+      "id": "idea-1794558914644",
+      "title": "Jigsaw puzzle",
+      "detail": "",
+      "links": [
+        {
+          "name": "jigsaw",
+          "url": "https://www.jigsawexplorer.com/multiplayer-jigsaw-puzzle-games/"
+        }
+      ]
     }
   ]
 }
